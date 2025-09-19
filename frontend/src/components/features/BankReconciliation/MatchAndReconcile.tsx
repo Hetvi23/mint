@@ -30,6 +30,7 @@ import RecordPaymentModal from "./RecordPaymentModal"
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import SelectedTransactionsTable from "./SelectedTransactionsTable"
 import MatchFilters from "./MatchFilters"
+import InvoiceMatching from "./InvoiceMatching"
 
 const MatchAndReconcile = ({ contentHeight }: { contentHeight: number }) => {
     const selectedBank = useAtomValue(selectedBankAccountAtom)
@@ -76,6 +77,10 @@ const UnreconciledTransactions = ({ contentHeight }: { contentHeight: number }) 
     })
 
     const [search, setSearch] = useDebounceValue('', 500)
+    
+    // Invoice matching state
+    const [invoiceMatchingOpen, setInvoiceMatchingOpen] = useState(false)
+    const [selectedAmount, setSelectedAmount] = useState<number>(0)
 
     const searchIndex = useMemo(() => {
 
@@ -216,6 +221,14 @@ const UnreconciledTransactions = ({ contentHeight }: { contentHeight: number }) 
             totalCount={results?.length}
         />
 
+        {/* Invoice Matching Component */}
+        {invoiceMatchingOpen && (
+            <InvoiceMatching
+                transactionAmount={selectedAmount}
+                onClose={() => setInvoiceMatchingOpen(false)}
+            />
+        )}
+
     </div>
 }
 
@@ -269,7 +282,18 @@ const UnreconciledTransactionItem = ({ transaction }: { transaction: Unreconcile
                 </div>
                 <div className="gap-1 flex flex-col items-end min-w-36 h-full text-right">
                     {isWithdrawal ? <ArrowUpRight className="w-6 h-6 text-destructive" /> : <ArrowDownRight className="w-6 h-6 text-green-500" />}
-                    {amount && amount > 0 && <span className="font-semibold font-mono text-md">{formatCurrency(amount, currency)}</span>}
+                    {amount && amount > 0 && (
+                        <span 
+                            className="font-semibold font-mono text-md cursor-pointer hover:text-blue-600 hover:underline transition-colors"
+                            onClick={() => {
+                                setSelectedAmount(amount)
+                                setInvoiceMatchingOpen(true)
+                            }}
+                            title="Click to search for matching invoices"
+                        >
+                            {formatCurrency(amount, currency)}
+                        </span>
+                    )}
                     {amount !== transaction.unallocated_amount && <span className="text-xs text-gray-700">{formatCurrency(transaction.unallocated_amount, currency)}<br />{_("Unallocated")}</span>}
                 </div>
             </div>
