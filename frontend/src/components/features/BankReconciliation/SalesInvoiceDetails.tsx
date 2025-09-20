@@ -7,6 +7,8 @@ import { useFrappeGetCall } from 'frappe-react-sdk'
 import { formatCurrency } from "@/lib/numbers"
 import { formatDate } from "@/lib/date"
 import { UnreconciledTransaction, useIsTransactionWithdrawal } from "./utils"
+import { bankRecMatchFilters } from "./bankRecAtoms"
+import { useAtomValue } from "jotai"
 import { slug } from "@/lib/frappe"
 import _ from "@/lib/translate"
 
@@ -30,8 +32,10 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
     const [isLoading, setIsLoading] = useState(false)
     const [invoices, setInvoices] = useState<SalesInvoice[]>([])
     const [error, setError] = useState<string | null>(null)
+    const [filteredInvoices, setFilteredInvoices] = useState<SalesInvoice[]>([])
 
     const { amount } = useIsTransactionWithdrawal(transaction)
+    const matchFilters = useAtomValue(bankRecMatchFilters)
 
     useEffect(() => {
         if (transaction && amount) {
@@ -45,6 +49,74 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             fetchMatchingInvoices()
         }
     }, [transaction, amount])
+
+    useEffect(() => {
+        if (invoices.length > 0) {
+            console.log('Filters changed, re-filtering invoices')
+            filterAndSortInvoices(invoices)
+        }
+    }, [matchFilters, amount])
+
+    const filterAndSortInvoices = (invoiceList: SalesInvoice[]) => {
+        console.log('Filtering and sorting invoices:', invoiceList.length)
+        console.log('Current filters:', matchFilters)
+        
+        let filtered = [...invoiceList]
+        
+        // Apply exact amount matching filter
+        if (matchFilters.includes('exact_amount_match')) {
+            console.log('Applying exact amount match filter for amount:', amount)
+            filtered = filtered.filter(invoice => {
+                const invoiceAmount = invoice.outstanding_amount || invoice.grand_total
+                return invoiceAmount === amount
+            })
+            console.log('After exact amount filter:', filtered.length)
+        } else {
+            // Apply rounded off value filter (current behavior)
+            console.log('Applying rounded off value filter for amount:', amount)
+            filtered = filtered.filter(invoice => {
+                const invoiceAmount = invoice.outstanding_amount || invoice.grand_total
+                // Round to nearest 100 for comparison
+                const roundedAmount = Math.round(amount / 100) * 100
+                const roundedInvoiceAmount = Math.round(invoiceAmount / 100) * 100
+                return roundedInvoiceAmount === roundedAmount
+            })
+            console.log('After rounded off filter:', filtered.length)
+        }
+        
+        // Apply company wise filter if enabled
+        if (matchFilters.includes('company_wise_filter')) {
+            // Group by customer and show only one invoice per customer
+            const customerMap = new Map()
+            filtered.forEach(invoice => {
+                if (!customerMap.has(invoice.customer) || 
+                    (invoice.outstanding_amount || invoice.grand_total) < 
+                    (customerMap.get(invoice.customer).outstanding_amount || customerMap.get(invoice.customer).grand_total)) {
+                    customerMap.set(invoice.customer, invoice)
+                }
+            })
+            filtered = Array.from(customerMap.values())
+            console.log('After company wise filter:', filtered.length)
+        }
+        
+        // Filter outstanding amounts above paid amount
+        filtered = filtered.filter(invoice => {
+            const outstandingAmount = invoice.outstanding_amount || invoice.grand_total
+            return outstandingAmount >= amount
+        })
+        console.log('After outstanding amount filter (>= paid amount):', filtered.length)
+        
+        // Sort by outstanding amount in ascending order
+        filtered.sort((a, b) => {
+            const outstandingA = a.outstanding_amount || a.grand_total
+            const outstandingB = b.outstanding_amount || b.grand_total
+            return outstandingA - outstandingB
+        })
+        console.log('After sorting by outstanding amount:', filtered.length)
+        
+        setFilteredInvoices(filtered)
+        return filtered
+    }
 
     const fetchMatchingInvoices = async () => {
         if (!amount) return
@@ -88,6 +160,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             if (data && data.message && data.message.length > 0) {
                 console.log('Found sales invoices:', data.message)
                 setInvoices(data.message)
+                filterAndSortInvoices(data.message)
             } else {
                 console.log('No exact amount match found, trying fallback search...')
                 await fetchFallbackInvoices()
@@ -146,6 +219,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
 
                 console.log('Relevant invoices from fallback search:', relevantInvoices)
                 setInvoices(relevantInvoices)
+                filterAndSortInvoices(relevantInvoices)
             } else {
                 console.log('No invoices found in fallback search')
                 setInvoices([])
@@ -190,9 +264,11 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             if (data && data.message && data.message.length > 0) {
                 console.log('Found all invoices:', data.message)
                 setInvoices(data.message)
+                filterAndSortInvoices(data.message)
             } else {
                 console.log('No invoices found in system')
                 setInvoices([])
+                setFilteredInvoices([])
             }
         } catch (err) {
             console.error('Error fetching all invoices:', err)
@@ -253,7 +329,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
         )
     }
 
-    if (invoices.length === 0) {
+    if (filteredInvoices.length === 0) {
         return (
             <Card className="border-gray-200 bg-gray-50/30">
                 <CardContent className="pt-4">
@@ -282,7 +358,22 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
 
     return (
         <div className="space-y-3">
-            {invoices.map((invoice) => (
+            <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                <div className="flex items-center gap-2 mb-1">
+                    <Search className="h-4 w-4 text-blue-600" />
+                    <span className="font-medium text-blue-800">Invoice Matching Results</span>
+                </div>
+                <p className="text-xs text-blue-700">
+                    Found {filteredInvoices.length} sales invoice(s) with matching amount (₹{formatCurrency(amount || 0)}). 
+                    These could be customer payments received for these invoices.
+                </p>
+                <div className="text-xs text-blue-600 mt-2">
+                    {matchFilters.includes('exact_amount_match') ? '✓ Exact Amount Match' : '✓ Rounded Off Value'}
+                    {matchFilters.includes('company_wise_filter') && ' • ✓ Company Wise Filter'}
+                    • Sorted by Outstanding Amount (Ascending)
+                </div>
+            </div>
+            {filteredInvoices.map((invoice) => (
                 <Card key={invoice.name} className="border-green-200 bg-green-50/30 hover:shadow-md transition-all duration-200">
                     <CardHeader className="pb-2">
                         <CardTitle className="flex items-center justify-between">
@@ -324,10 +415,10 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                         <div className="flex items-center justify-between p-2.5 bg-background/60 rounded-lg border border-border/50">
                             <div className="flex items-center gap-2">
                                 <Search className="w-4 h-4 text-green-600" />
-                                <span className="text-sm font-medium text-foreground">Matching Invoice</span>
+                                <span className="text-sm font-medium text-foreground">Potential Match</span>
                             </div>
                             <Badge variant="outline" className="text-xs font-medium bg-green-100 text-green-700 border-green-300">
-                                Amount Matches
+                                Amount: ₹{formatCurrency(amount || 0)}
                             </Badge>
                         </div>
 
@@ -373,17 +464,17 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                                 className="w-full bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700 font-medium"
                                 size="sm"
                                 onClick={() => {
-                                    console.log('Create payment entry for invoice:', invoice.name)
-                                    // TODO: Implement payment entry creation
+                                    console.log('Reconcile invoice with transaction:', invoice.name, 'Transaction:', transaction.name)
+                                    // TODO: Implement invoice reconciliation
                                 }}
                             >
                                 <div className="flex items-center gap-2">
                                     <FileText className="h-4 w-4" />
-                                    <span>Create Payment Entry</span>
+                                    <span>Reconcile with Invoice</span>
                                 </div>
                             </Button>
                             <p className="text-sm text-muted-foreground mt-2 text-center leading-relaxed">
-                                Create a payment entry to reconcile this invoice with the selected transaction
+                                Mark this invoice as paid by reconciling with the bank transaction
                             </p>
                         </div>
                     </CardContent>

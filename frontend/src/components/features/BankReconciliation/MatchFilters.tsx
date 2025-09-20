@@ -40,6 +40,8 @@ const MatchFilters = () => {
             <PopoverContent>
                 <div className="flex flex-col gap-4">
                     <ToggleSwitch label="Show Only Exact Amount" id="exact_match" />
+                    <ToggleSwitch label="Exact Amount Match" id="exact_amount_match" />
+                    <ToggleSwitch label="Company Wise Filter" id="company_wise_filter" />
                     <Separator />
                     <ToggleSwitch label="Payment Entry" id="payment_entry" />
                     <ToggleSwitch label="Journal Entry" id="journal_entry" />
