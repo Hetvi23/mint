@@ -55,12 +55,13 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
         try {
             console.log('Searching for sales invoices with amount:', amount)
             
-            // Search for sales invoices with matching amount
-            const { data } = await fetch('/api/method/frappe.client.get_list', {
+            // Use Frappe SDK to get sales invoices
+            const response = await fetch('/api/method/frappe.client.get_list', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': window.csrf_token || ''
+                    'X-Frappe-CSRF-Token': window.csrf_token || '',
+                    'Accept': 'application/json'
                 },
                 body: JSON.stringify({
                     doctype: 'Sales Invoice',
@@ -71,21 +72,131 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                         ['status', '!=', 'Draft']
                     ],
                     order_by: 'posting_date desc',
-                    limit_page_length: 5
+                    limit_page_length: 10
                 })
             })
 
-            if (data && data.message) {
+            console.log('API Response status:', response.status)
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const data = await response.json()
+            console.log('API Response data:', data)
+
+            if (data && data.message && data.message.length > 0) {
                 console.log('Found sales invoices:', data.message)
                 setInvoices(data.message)
             } else {
-                console.log('No sales invoices found for amount:', amount)
-                setInvoices([])
+                console.log('No exact amount match found, trying fallback search...')
+                await fetchFallbackInvoices()
             }
         } catch (err) {
             console.error('Error fetching sales invoices:', err)
-            setError('Failed to load sales invoices')
+            console.error('Error details:', err.message)
+            setError(`Failed to load sales invoices: ${err.message}`)
             setInvoices([])
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const fetchFallbackInvoices = async () => {
+        try {
+            console.log('Performing fallback search for sales invoices...')
+            
+            // Search for invoices with outstanding amounts
+            const response = await fetch('/api/method/frappe.client.get_list', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Frappe-CSRF-Token': window.csrf_token || '',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    doctype: 'Sales Invoice',
+                    fields: ['name', 'customer', 'customer_name', 'posting_date', 'grand_total', 'status', 'outstanding_amount', 'due_date', 'currency'],
+                    filters: [
+                        ['outstanding_amount', '>', 0],
+                        ['status', '!=', 'Cancelled'],
+                        ['status', '!=', 'Draft'],
+                        ['status', '!=', 'Paid']
+                    ],
+                    order_by: 'posting_date desc',
+                    limit_page_length: 20
+                })
+            })
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const data = await response.json()
+            console.log('Fallback search response:', data)
+
+            if (data && data.message && data.message.length > 0) {
+                // Filter invoices that might be relevant (within 10% of the amount)
+                const relevantInvoices = data.message.filter((invoice: SalesInvoice) => {
+                    const invoiceAmount = invoice.outstanding_amount || invoice.grand_total
+                    const difference = Math.abs(invoiceAmount - amount)
+                    const percentageDifference = (difference / amount) * 100
+                    return percentageDifference <= 10 // Within 10%
+                })
+
+                console.log('Relevant invoices from fallback search:', relevantInvoices)
+                setInvoices(relevantInvoices)
+            } else {
+                console.log('No invoices found in fallback search')
+                setInvoices([])
+            }
+        } catch (err) {
+            console.error('Error in fallback search:', err)
+            setInvoices([])
+        }
+    }
+
+    const showAllInvoices = async () => {
+        try {
+            console.log('Fetching all sales invoices for debugging...')
+            setIsLoading(true)
+            
+            const response = await fetch('/api/method/frappe.client.get_list', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Frappe-CSRF-Token': window.csrf_token || '',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    doctype: 'Sales Invoice',
+                    fields: ['name', 'customer', 'customer_name', 'posting_date', 'grand_total', 'status', 'outstanding_amount', 'due_date', 'currency'],
+                    filters: [
+                        ['status', '!=', 'Cancelled'],
+                        ['status', '!=', 'Draft']
+                    ],
+                    order_by: 'posting_date desc',
+                    limit_page_length: 50
+                })
+            })
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`)
+            }
+
+            const data = await response.json()
+            console.log('All invoices response:', data)
+
+            if (data && data.message && data.message.length > 0) {
+                console.log('Found all invoices:', data.message)
+                setInvoices(data.message)
+            } else {
+                console.log('No invoices found in system')
+                setInvoices([])
+            }
+        } catch (err) {
+            console.error('Error fetching all invoices:', err)
+            setError(`Failed to load all invoices: ${err.message}`)
         } finally {
             setIsLoading(false)
         }
@@ -148,7 +259,21 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                 <CardContent className="pt-4">
                     <div className="flex items-center gap-3">
                         <FileText className="h-5 w-5 text-gray-600" />
-                        <span className="text-sm text-gray-700">No matching sales invoices found for ₹{formatCurrency(amount || 0)}</span>
+                        <div className="flex flex-col gap-1">
+                            <span className="text-sm text-gray-700">No matching sales invoices found for ₹{formatCurrency(amount || 0)}</span>
+                            <span className="text-xs text-gray-500">Searched for exact amount match and similar outstanding invoices</span>
+                        </div>
+                    </div>
+                    <div className="mt-3">
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={showAllInvoices}
+                            className="text-xs"
+                        >
+                            <Search className="h-3 w-3 mr-1" />
+                            Show All Invoices (Debug)
+                        </Button>
                     </div>
                 </CardContent>
             </Card>
