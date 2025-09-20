@@ -7,8 +7,8 @@ import { useFrappeGetCall } from 'frappe-react-sdk'
 import { formatCurrency } from "@/lib/numbers"
 import { formatDate } from "@/lib/date"
 import { UnreconciledTransaction, useIsTransactionWithdrawal } from "./utils"
-import { bankRecMatchFilters } from "./bankRecAtoms"
-import { useAtomValue } from "jotai"
+import { bankRecMatchFilters, bankRecRecordPaymentModalAtom } from "./bankRecAtoms"
+import { useAtomValue, useSetAtom } from "jotai"
 import { slug } from "@/lib/frappe"
 import _ from "@/lib/translate"
 
@@ -36,6 +36,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
 
     const { amount } = useIsTransactionWithdrawal(transaction)
     const matchFilters = useAtomValue(bankRecMatchFilters)
+    const setRecordPaymentModalOpen = useSetAtom(bankRecRecordPaymentModalAtom)
 
     useEffect(() => {
         if (transaction && amount) {
@@ -464,17 +465,17 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                                 className="w-full bg-green-600 hover:bg-green-700 text-white border-green-600 hover:border-green-700 font-medium"
                                 size="sm"
                                 onClick={() => {
-                                    console.log('Reconcile invoice with transaction:', invoice.name, 'Transaction:', transaction.name)
-                                    // TODO: Implement invoice reconciliation
+                                    console.log('Create payment entry for invoice:', invoice.name, 'Transaction:', transaction.name)
+                                    setRecordPaymentModalOpen(true)
                                 }}
                             >
                                 <div className="flex items-center gap-2">
                                     <FileText className="h-4 w-4" />
-                                    <span>Reconcile with Invoice</span>
+                                    <span>Create Payment Entry</span>
                                 </div>
                             </Button>
                             <p className="text-sm text-muted-foreground mt-2 text-center leading-relaxed">
-                                Mark this invoice as paid by reconciling with the bank transaction
+                                Create a payment entry against this invoice for the selected transaction
                             </p>
                         </div>
                     </CardContent>
