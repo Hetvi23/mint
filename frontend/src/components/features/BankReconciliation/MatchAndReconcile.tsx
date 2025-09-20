@@ -1,6 +1,6 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { MissingFiltersBanner } from "./MissingFiltersBanner"
-import { bankRecRecordJournalEntryModalAtom, bankRecRecordPaymentModalAtom, bankRecSelectedTransactionAtom, bankRecTransferModalAtom, selectedBankAccountAtom } from "./bankRecAtoms"
+import { bankRecRecordJournalEntryModalAtom, bankRecRecordPaymentModalAtom, bankRecSelectedTransactionAtom, bankRecTransferModalAtom, selectedBankAccountAtom, bankRecMatchFilters } from "./bankRecAtoms"
 import { H4 } from "@/components/ui/typography"
 import { useMemo, useState, useEffect } from "react"
 import { getCompanyCurrency } from "@/lib/company"
@@ -31,6 +31,7 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import SelectedTransactionsTable from "./SelectedTransactionsTable"
 import MatchFilters from "./MatchFilters"
 import InvoiceMatching from "./InvoiceMatching"
+import SalesInvoiceDetails from "./SalesInvoiceDetails"
 
 const MatchAndReconcile = ({ contentHeight }: { contentHeight: number }) => {
     const selectedBank = useAtomValue(selectedBankAccountAtom)
@@ -413,6 +414,7 @@ const OptionsForSingleTransaction = ({ transaction, contentHeight }: { transacti
     const setTransferModalOpen = useSetAtom(bankRecTransferModalAtom)
     const setRecordPaymentModalOpen = useSetAtom(bankRecRecordPaymentModalAtom)
     const setRecordJournalEntryModalOpen = useSetAtom(bankRecRecordJournalEntryModalAtom)
+    const matchFilters = useAtomValue(bankRecMatchFilters)
 
     return <div className="flex flex-col gap-3">
         <TooltipProvider>
@@ -462,6 +464,7 @@ const OptionsForSingleTransaction = ({ transaction, contentHeight }: { transacti
             </div>
         </TooltipProvider>
         {transaction.matched_rule && <RuleAction transaction={transaction} />}
+        {matchFilters.includes('invoice_matching') && <SalesInvoiceDetails transaction={transaction} />}
         <VouchersForTransaction transaction={transaction} contentHeight={contentHeight} />
     </div>
 }
