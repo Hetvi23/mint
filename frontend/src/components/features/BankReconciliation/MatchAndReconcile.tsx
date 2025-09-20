@@ -2,7 +2,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai"
 import { MissingFiltersBanner } from "./MissingFiltersBanner"
 import { bankRecRecordJournalEntryModalAtom, bankRecRecordPaymentModalAtom, bankRecSelectedTransactionAtom, bankRecTransferModalAtom, selectedBankAccountAtom } from "./bankRecAtoms"
 import { H4 } from "@/components/ui/typography"
-import { useMemo, useState } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { getCompanyCurrency } from "@/lib/company"
 import ErrorBanner from "@/components/ui/error-banner"
 import { Separator } from "@/components/ui/separator"
@@ -34,6 +34,12 @@ import InvoiceMatching from "./InvoiceMatching"
 
 const MatchAndReconcile = ({ contentHeight }: { contentHeight: number }) => {
     const selectedBank = useAtomValue(selectedBankAccountAtom)
+
+    useEffect(() => {
+        console.log('MatchAndReconcile component mounted')
+        console.log('Content height:', contentHeight)
+        console.log('Selected bank:', selectedBank?.name || 'None')
+    }, [contentHeight, selectedBank])
 
     if (!selectedBank) {
         return <MissingFiltersBanner text={_("Select a bank account to reconcile")} />

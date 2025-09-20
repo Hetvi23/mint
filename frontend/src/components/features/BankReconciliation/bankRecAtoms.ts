@@ -35,4 +35,4 @@ export const bankRecRecordJournalEntryModalAtom = atom(false)
 
 export const bankRecUnreconcileModalAtom = atom<string>('')
 
-export const bankRecMatchFilters = atomWithStorage<string[]>('mint-bank-rec-match-filters', ['payment_entry', 'journal_entry'])
+export const bankRecMatchFilters = atomWithStorage<string[]>('mint-bank-rec-match-filters', ['payment_entry', 'journal_entry', 'sales_invoice'])

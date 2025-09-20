@@ -13,7 +13,7 @@ import Settings from "@/components/features/Settings/Settings"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { H1 } from "@/components/ui/typography"
 import _ from "@/lib/translate"
-import { useLayoutEffect, useRef, useState } from "react"
+import { useLayoutEffect, useRef, useState, useEffect } from "react"
 
 
 const BankReconciliation = () => {
@@ -22,9 +22,15 @@ const BankReconciliation = () => {
 
     const ref = useRef<HTMLDivElement>(null)
 
+    useEffect(() => {
+        console.log('Bank Reconciliation page loaded successfully')
+        console.log('Mint app - Bank Reconciliation component mounted')
+    }, [])
+
     useLayoutEffect(() => {
         if (ref.current) {
             setHeaderHeight(ref.current.clientHeight)
+            console.log('Header height calculated:', ref.current.clientHeight)
         }
     }, [])
 
