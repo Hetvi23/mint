@@ -7,6 +7,7 @@ import { Search, X, FileText, User, Calendar, DollarSign } from "lucide-react"
 import { useFrappeGetCall } from 'frappe-react-sdk'
 import { formatCurrency } from "@/lib/numbers"
 import { formatDate } from "@/lib/date"
+import { useCurrentCompany } from '@/hooks/useCurrentCompany'
 
 interface SalesInvoice {
     name: string
@@ -25,6 +26,7 @@ interface InvoiceMatchingProps {
 const InvoiceMatching: React.FC<InvoiceMatchingProps> = ({ transactionAmount, onClose }) => {
     const [searchAmount, setSearchAmount] = useState<number>(transactionAmount)
     const [isSearching, setIsSearching] = useState(false)
+    const currentCompany = useCurrentCompany()
 
     // Use Frappe's get_list API to search for matching invoices
     const { data: invoices, error, isLoading, mutate } = useFrappeGetCall<{
@@ -32,7 +34,13 @@ const InvoiceMatching: React.FC<InvoiceMatchingProps> = ({ transactionAmount, on
     }>('frappe.client.get_list', {
         doctype: 'Sales Invoice',
         fields: ['name', 'customer', 'posting_date', 'grand_total', 'status', 'outstanding_amount'],
-        filters: [['grand_total', '=', searchAmount]],
+        filters: [
+            ['grand_total', '=', searchAmount],
+            ['status', '!=', 'Cancelled'],
+            ['status', '!=', 'Draft'],
+            ['status', '!=', 'Paid'],
+            ['company', '=', currentCompany]
+        ],
         order_by: 'posting_date desc',
         limit_page_length: 10
     }, {
@@ -190,5 +198,10 @@ const InvoiceMatching: React.FC<InvoiceMatchingProps> = ({ transactionAmount, on
 }
 
 export default InvoiceMatching
+
+
+
+
+
 
 

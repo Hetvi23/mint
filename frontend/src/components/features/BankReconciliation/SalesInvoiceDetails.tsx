@@ -3,14 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { FileText, User, Calendar, DollarSign, Search, ExternalLink } from "lucide-react"
-import { useFrappeGetCall } from 'frappe-react-sdk'
 import { formatCurrency } from "@/lib/numbers"
 import { formatDate } from "@/lib/date"
 import { UnreconciledTransaction, useIsTransactionWithdrawal } from "./utils"
 import { bankRecMatchFilters, bankRecRecordPaymentModalAtom } from "./bankRecAtoms"
 import { useAtomValue, useSetAtom } from "jotai"
-import { slug } from "@/lib/frappe"
 import _ from "@/lib/translate"
+import { useCurrentCompany } from '@/hooks/useCurrentCompany'
 
 interface SalesInvoice {
     name: string
@@ -37,6 +36,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
     const { amount } = useIsTransactionWithdrawal(transaction)
     const matchFilters = useAtomValue(bankRecMatchFilters)
     const setRecordPaymentModalOpen = useSetAtom(bankRecRecordPaymentModalAtom)
+    const currentCompany = useCurrentCompany()
 
     useEffect(() => {
         if (transaction && amount) {
@@ -69,7 +69,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             console.log('Applying exact amount match filter for amount:', amount)
             filtered = filtered.filter(invoice => {
                 const invoiceAmount = invoice.outstanding_amount || invoice.grand_total
-                return invoiceAmount === amount
+                return amount ? invoiceAmount === amount : false
             })
             console.log('After exact amount filter:', filtered.length)
         } else {
@@ -78,32 +78,17 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             filtered = filtered.filter(invoice => {
                 const invoiceAmount = invoice.outstanding_amount || invoice.grand_total
                 // Round to nearest 100 for comparison
-                const roundedAmount = Math.round(amount / 100) * 100
+                const roundedAmount = amount ? Math.round(amount / 100) * 100 : 0
                 const roundedInvoiceAmount = Math.round(invoiceAmount / 100) * 100
                 return roundedInvoiceAmount === roundedAmount
             })
             console.log('After rounded off filter:', filtered.length)
         }
         
-        // Apply company wise filter if enabled
-        if (matchFilters.includes('company_wise_filter')) {
-            // Group by customer and show only one invoice per customer
-            const customerMap = new Map()
-            filtered.forEach(invoice => {
-                if (!customerMap.has(invoice.customer) || 
-                    (invoice.outstanding_amount || invoice.grand_total) < 
-                    (customerMap.get(invoice.customer).outstanding_amount || customerMap.get(invoice.customer).grand_total)) {
-                    customerMap.set(invoice.customer, invoice)
-                }
-            })
-            filtered = Array.from(customerMap.values())
-            console.log('After company wise filter:', filtered.length)
-        }
-        
         // Filter outstanding amounts above paid amount
         filtered = filtered.filter(invoice => {
             const outstandingAmount = invoice.outstanding_amount || invoice.grand_total
-            return outstandingAmount >= amount
+            return amount ? outstandingAmount >= amount : true
         })
         console.log('After outstanding amount filter (>= paid amount):', filtered.length)
         
@@ -133,7 +118,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': window.csrf_token || '',
+                    'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify({
@@ -142,7 +127,9 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                     filters: [
                         ['grand_total', '=', amount],
                         ['status', '!=', 'Cancelled'],
-                        ['status', '!=', 'Draft']
+                        ['status', '!=', 'Draft'],
+                        ['status', '!=', 'Paid'],
+                        ['company', '=', currentCompany]
                     ],
                     order_by: 'posting_date desc',
                     limit_page_length: 10
@@ -168,8 +155,9 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             }
         } catch (err) {
             console.error('Error fetching sales invoices:', err)
-            console.error('Error details:', err.message)
-            setError(`Failed to load sales invoices: ${err.message}`)
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+            console.error('Error details:', errorMessage)
+            setError(`Failed to load sales invoices: ${errorMessage}`)
             setInvoices([])
         } finally {
             setIsLoading(false)
@@ -185,7 +173,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': window.csrf_token || '',
+                    'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify({
@@ -195,7 +183,8 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                         ['outstanding_amount', '>', 0],
                         ['status', '!=', 'Cancelled'],
                         ['status', '!=', 'Draft'],
-                        ['status', '!=', 'Paid']
+                        ['status', '!=', 'Paid'],
+                        ['company', '=', currentCompany]
                     ],
                     order_by: 'posting_date desc',
                     limit_page_length: 20
@@ -213,8 +202,8 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                 // Filter invoices that might be relevant (within 10% of the amount)
                 const relevantInvoices = data.message.filter((invoice: SalesInvoice) => {
                     const invoiceAmount = invoice.outstanding_amount || invoice.grand_total
-                    const difference = Math.abs(invoiceAmount - amount)
-                    const percentageDifference = (difference / amount) * 100
+                    const difference = Math.abs(invoiceAmount - (amount || 0))
+                    const percentageDifference = amount ? (difference / amount) * 100 : 0
                     return percentageDifference <= 10 // Within 10%
                 })
 
@@ -240,7 +229,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': window.csrf_token || '',
+                    'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
                     'Accept': 'application/json'
                 },
                 body: JSON.stringify({
@@ -248,7 +237,9 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                     fields: ['name', 'customer', 'customer_name', 'posting_date', 'grand_total', 'status', 'outstanding_amount', 'due_date', 'currency'],
                     filters: [
                         ['status', '!=', 'Cancelled'],
-                        ['status', '!=', 'Draft']
+                        ['status', '!=', 'Draft'],
+                        ['status', '!=', 'Paid'],
+                        ['company', '=', currentCompany]
                     ],
                     order_by: 'posting_date desc',
                     limit_page_length: 50
@@ -273,7 +264,8 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             }
         } catch (err) {
             console.error('Error fetching all invoices:', err)
-            setError(`Failed to load all invoices: ${err.message}`)
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+            setError(`Failed to load all invoices: ${errorMessage}`)
         } finally {
             setIsLoading(false)
         }
@@ -370,7 +362,6 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                 </p>
                 <div className="text-xs text-blue-600 mt-2">
                     {matchFilters.includes('exact_amount_match') ? '✓ Exact Amount Match' : '✓ Rounded Off Value'}
-                    {matchFilters.includes('company_wise_filter') && ' • ✓ Company Wise Filter'}
                     • Sorted by Outstanding Amount (Ascending)
                 </div>
             </div>
