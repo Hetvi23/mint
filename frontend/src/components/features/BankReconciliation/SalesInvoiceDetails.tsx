@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { FileText, User, Calendar, DollarSign, Search, ExternalLink } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { FileText, User, Calendar, DollarSign, Search, ExternalLink, ArrowUpDown } from "lucide-react"
 import { formatCurrency } from "@/lib/numbers"
 import { formatDate } from "@/lib/date"
 import { UnreconciledTransaction, useIsTransactionWithdrawal } from "./utils"
@@ -27,11 +28,16 @@ interface SalesInvoiceDetailsProps {
     transaction: UnreconciledTransaction
 }
 
+type SortField = 'outstanding_amount' | 'posting_date' | 'customer_name' | 'grand_total' | 'due_date'
+type SortOrder = 'asc' | 'desc'
+
 const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }) => {
     const [isLoading, setIsLoading] = useState(false)
     const [invoices, setInvoices] = useState<SalesInvoice[]>([])
     const [error, setError] = useState<string | null>(null)
     const [filteredInvoices, setFilteredInvoices] = useState<SalesInvoice[]>([])
+    const [sortField, setSortField] = useState<SortField>('outstanding_amount')
+    const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
 
     const { amount } = useIsTransactionWithdrawal(transaction)
     const matchFilters = useAtomValue(bankRecMatchFilters)
@@ -56,7 +62,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             console.log('Filters changed, re-filtering invoices')
             filterAndSortInvoices(invoices)
         }
-    }, [matchFilters, amount])
+    }, [matchFilters, amount, sortField, sortOrder])
 
     const filterAndSortInvoices = (invoiceList: SalesInvoice[]) => {
         console.log('Filtering and sorting invoices:', invoiceList.length)
@@ -92,13 +98,47 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
         })
         console.log('After outstanding amount filter (>= paid amount):', filtered.length)
         
-        // Sort by outstanding amount in ascending order
+        // Sort by selected field and order
         filtered.sort((a, b) => {
-            const outstandingA = a.outstanding_amount || a.grand_total
-            const outstandingB = b.outstanding_amount || b.grand_total
-            return outstandingA - outstandingB
+            let valueA: any, valueB: any
+            
+            switch (sortField) {
+                case 'outstanding_amount':
+                    valueA = a.outstanding_amount || a.grand_total
+                    valueB = b.outstanding_amount || b.grand_total
+                    break
+                case 'posting_date':
+                    valueA = new Date(a.posting_date).getTime()
+                    valueB = new Date(b.posting_date).getTime()
+                    break
+                case 'customer_name':
+                    valueA = (a.customer_name || a.customer || '').toLowerCase()
+                    valueB = (b.customer_name || b.customer || '').toLowerCase()
+                    break
+                case 'grand_total':
+                    valueA = a.grand_total
+                    valueB = b.grand_total
+                    break
+                case 'due_date':
+                    valueA = a.due_date ? new Date(a.due_date).getTime() : 0
+                    valueB = b.due_date ? new Date(b.due_date).getTime() : 0
+                    break
+                default:
+                    valueA = a.outstanding_amount || a.grand_total
+                    valueB = b.outstanding_amount || b.grand_total
+            }
+            
+            if (sortField === 'customer_name') {
+                return sortOrder === 'asc' 
+                    ? valueA.localeCompare(valueB)
+                    : valueB.localeCompare(valueA)
+            } else {
+                return sortOrder === 'asc' 
+                    ? valueA - valueB
+                    : valueB - valueA
+            }
         })
-        console.log('After sorting by outstanding amount:', filtered.length)
+        console.log(`After sorting by ${sortField} (${sortOrder}):`, filtered.length)
         
         setFilteredInvoices(filtered)
         return filtered
@@ -362,8 +402,39 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                 </p>
                 <div className="text-xs text-blue-600 mt-2">
                     {matchFilters.includes('exact_amount_match') ? '✓ Exact Amount Match' : '✓ Rounded Off Value'}
-                    • Sorted by Outstanding Amount (Ascending)
+                    • Sorted by {sortField.replace('_', ' ')} ({sortOrder === 'asc' ? 'Ascending' : 'Descending'})
                 </div>
+            </div>
+
+            {/* Sorting Controls */}
+            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-2">
+                    <ArrowUpDown className="h-4 w-4 text-gray-600" />
+                    <span className="text-sm font-medium text-gray-700">Sort by:</span>
+                </div>
+                
+                <Select value={sortField} onValueChange={(value: SortField) => setSortField(value)}>
+                    <SelectTrigger className="w-40 h-8">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="outstanding_amount">Outstanding Amount</SelectItem>
+                        <SelectItem value="posting_date">Posting Date</SelectItem>
+                        <SelectItem value="customer_name">Customer Name</SelectItem>
+                        <SelectItem value="grand_total">Total Amount</SelectItem>
+                        <SelectItem value="due_date">Due Date</SelectItem>
+                    </SelectContent>
+                </Select>
+
+                <Select value={sortOrder} onValueChange={(value: SortOrder) => setSortOrder(value)}>
+                    <SelectTrigger className="w-32 h-8">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="asc">Ascending</SelectItem>
+                        <SelectItem value="desc">Descending</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
             {filteredInvoices.map((invoice) => (
                 <Card key={invoice.name} className="border-green-200 bg-green-50/30 hover:shadow-md transition-all duration-200">
