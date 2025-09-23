@@ -43,3 +43,6 @@ export type SortOrder = 'asc' | 'desc'
 
 export const bankRecInvoiceSortFieldAtom = atomWithStorage<SortField>('mint-bank-rec-invoice-sort-field', 'outstanding_amount')
 export const bankRecInvoiceSortOrderAtom = atomWithStorage<SortOrder>('mint-bank-rec-invoice-sort-order', 'asc')
+
+// Round off value for exact amount matching
+export const bankRecRoundOffValueAtom = atomWithStorage<number>('mint-bank-rec-round-off-value', 100)

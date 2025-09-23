@@ -6,7 +6,7 @@ import { FileText, User, Calendar, DollarSign, Search, ExternalLink } from "luci
 import { formatCurrency } from "@/lib/numbers"
 import { formatDate } from "@/lib/date"
 import { UnreconciledTransaction, useIsTransactionWithdrawal } from "./utils"
-import { bankRecMatchFilters, bankRecRecordPaymentModalAtom, bankRecInvoiceSortFieldAtom, bankRecInvoiceSortOrderAtom } from "./bankRecAtoms"
+import { bankRecMatchFilters, bankRecRecordPaymentModalAtom, bankRecInvoiceSortFieldAtom, bankRecInvoiceSortOrderAtom, bankRecRoundOffValueAtom } from "./bankRecAtoms"
 import { useAtomValue, useSetAtom } from "jotai"
 import _ from "@/lib/translate"
 import { useCurrentCompany } from '@/hooks/useCurrentCompany'
@@ -37,6 +37,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
     const matchFilters = useAtomValue(bankRecMatchFilters)
     const sortField = useAtomValue(bankRecInvoiceSortFieldAtom)
     const sortOrder = useAtomValue(bankRecInvoiceSortOrderAtom)
+    const roundOffValue = useAtomValue(bankRecRoundOffValueAtom)
     const setRecordPaymentModalOpen = useSetAtom(bankRecRecordPaymentModalAtom)
     const currentCompany = useCurrentCompany()
 
@@ -69,11 +70,12 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             console.log('Filters changed, re-filtering invoices')
             filterAndSortInvoices(invoices)
         }
-    }, [matchFilters, amount, sortField, sortOrder])
+    }, [matchFilters, amount, sortField, sortOrder, roundOffValue])
 
     const filterAndSortInvoices = (invoiceList: SalesInvoice[]) => {
         console.log('Filtering and sorting invoices:', invoiceList.length)
         console.log('Current filters:', matchFilters)
+        console.log('Current sort field:', sortField, 'sort order:', sortOrder)
         
         let filtered = [...invoiceList]
         
@@ -87,12 +89,21 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             console.log('After exact amount filter:', filtered.length)
         } else {
             // Apply rounded off value filter (current behavior)
-            console.log('Applying rounded off value filter for amount:', amount)
+            console.log('Applying rounded off value filter for amount:', amount, 'with round off value:', roundOffValue)
             filtered = filtered.filter(invoice => {
                 const invoiceAmount = invoice.outstanding_amount || invoice.grand_total
-                // Round to nearest 100 for comparison
-                const roundedAmount = amount ? Math.round(amount / 100) * 100 : 0
-                const roundedInvoiceAmount = Math.round(invoiceAmount / 100) * 100
+                // Round to nearest roundOffValue for comparison
+                const roundedAmount = amount ? Math.round(amount / roundOffValue) * roundOffValue : 0
+                const roundedInvoiceAmount = Math.round(invoiceAmount / roundOffValue) * roundOffValue
+                console.log('Rounding comparison:', {
+                    invoice: invoice.name,
+                    invoiceAmount,
+                    roundedInvoiceAmount,
+                    transactionAmount: amount,
+                    roundedAmount,
+                    roundOffValue,
+                    match: roundedInvoiceAmount === roundedAmount
+                })
                 return roundedInvoiceAmount === roundedAmount
             })
             console.log('After rounded off filter:', filtered.length)
@@ -117,6 +128,14 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                 case 'posting_date':
                     valueA = new Date(a.posting_date).getTime()
                     valueB = new Date(b.posting_date).getTime()
+                    console.log('Sorting by posting_date:', {
+                        invoiceA: a.name,
+                        postingDateA: a.posting_date,
+                        valueA,
+                        invoiceB: b.name,
+                        postingDateB: b.posting_date,
+                        valueB
+                    })
                     break
                 case 'customer_name':
                     valueA = (a.customer_name || a.customer || '').toLowerCase()

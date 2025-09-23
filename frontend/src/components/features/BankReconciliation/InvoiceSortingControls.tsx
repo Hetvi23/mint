@@ -16,7 +16,7 @@ const InvoiceSortingControls = () => {
     }
 
     return (
-        <div className="flex items-center gap-2 bg-yellow-100 px-3 py-2 rounded-lg border-2 border-yellow-400">
+        <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
             <ArrowUpDown className="h-4 w-4 text-gray-600" />
             <span className="text-sm font-medium text-gray-700">Sort:</span>
             
