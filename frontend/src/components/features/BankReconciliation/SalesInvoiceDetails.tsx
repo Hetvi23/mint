@@ -58,6 +58,17 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
     }, [transaction, amount])
 
     useEffect(() => {
+        console.log('SalesInvoiceDetails render state:', {
+            isLoading,
+            error,
+            invoicesCount: invoices.length,
+            filteredInvoicesCount: filteredInvoices.length,
+            sortField,
+            sortOrder
+        })
+    }, [isLoading, error, invoices.length, filteredInvoices.length, sortField, sortOrder])
+
+    useEffect(() => {
         if (invoices.length > 0) {
             console.log('Filters changed, re-filtering invoices')
             filterAndSortInvoices(invoices)
@@ -363,32 +374,67 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
     }
 
     if (filteredInvoices.length === 0) {
+        console.log('Rendering "no results" section with sorting controls')
         return (
-            <Card className="border-gray-200 bg-gray-50/30">
-                <CardContent className="pt-4">
-                    <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-gray-600" />
-                        <div className="flex flex-col gap-1">
-                            <span className="text-sm text-gray-700">No matching sales invoices found for ₹{formatCurrency(amount || 0)}</span>
-                            <span className="text-xs text-gray-500">Searched for exact amount match and similar outstanding invoices</span>
+            <div className="space-y-3">
+                <Card className="border-gray-200 bg-gray-50/30">
+                    <CardContent className="pt-4">
+                        <div className="flex items-center gap-3">
+                            <FileText className="h-5 w-5 text-gray-600" />
+                            <div className="flex flex-col gap-1">
+                                <span className="text-sm text-gray-700">No matching sales invoices found for ₹{formatCurrency(amount || 0)}</span>
+                                <span className="text-xs text-gray-500">Searched for exact amount match and similar outstanding invoices</span>
+                            </div>
                         </div>
+                        <div className="mt-3">
+                            <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={showAllInvoices}
+                                className="text-xs"
+                            >
+                                <Search className="h-3 w-3 mr-1" />
+                                Show All Invoices (Debug)
+                            </Button>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Sorting Controls - Show even when no results */}
+                <div className="flex items-center gap-3 p-3 bg-yellow-100 rounded-lg border-2 border-yellow-400">
+                    <div className="flex items-center gap-2">
+                        <ArrowUpDown className="h-4 w-4 text-gray-600" />
+                        <span className="text-sm font-medium text-gray-700">Sort by:</span>
                     </div>
-                    <div className="mt-3">
-                        <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={showAllInvoices}
-                            className="text-xs"
-                        >
-                            <Search className="h-3 w-3 mr-1" />
-                            Show All Invoices (Debug)
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
+                    
+                    <Select value={sortField} onValueChange={(value: SortField) => setSortField(value)}>
+                        <SelectTrigger className="w-40 h-8">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="outstanding_amount">Outstanding Amount</SelectItem>
+                            <SelectItem value="posting_date">Posting Date</SelectItem>
+                            <SelectItem value="customer_name">Customer Name</SelectItem>
+                            <SelectItem value="grand_total">Total Amount</SelectItem>
+                            <SelectItem value="due_date">Due Date</SelectItem>
+                        </SelectContent>
+                    </Select>
+
+                    <Select value={sortOrder} onValueChange={(value: SortOrder) => setSortOrder(value)}>
+                        <SelectTrigger className="w-32 h-8">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="asc">Ascending</SelectItem>
+                            <SelectItem value="desc">Descending</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
         )
     }
 
+    console.log('Rendering main section with sorting controls and', filteredInvoices.length, 'invoices')
     return (
         <div className="space-y-3">
             <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
@@ -407,7 +453,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             </div>
 
             {/* Sorting Controls */}
-            <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center gap-3 p-3 bg-yellow-100 rounded-lg border-2 border-yellow-400">
                 <div className="flex items-center gap-2">
                     <ArrowUpDown className="h-4 w-4 text-gray-600" />
                     <span className="text-sm font-medium text-gray-700">Sort by:</span>
