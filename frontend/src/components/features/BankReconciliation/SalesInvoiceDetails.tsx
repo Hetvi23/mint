@@ -88,25 +88,26 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             })
             console.log('After exact amount filter:', filtered.length)
         } else {
-            // Apply rounded off value filter (current behavior)
-            console.log('Applying rounded off value filter for amount:', amount, 'with round off value:', roundOffValue)
+            // Apply range-based matching filter
+            console.log('Applying range-based matching for amount:', amount, 'with range:', roundOffValue)
             filtered = filtered.filter(invoice => {
                 const invoiceAmount = invoice.outstanding_amount || invoice.grand_total
-                // Round to nearest roundOffValue for comparison
-                const roundedAmount = amount ? Math.round(amount / roundOffValue) * roundOffValue : 0
-                const roundedInvoiceAmount = Math.round(invoiceAmount / roundOffValue) * roundOffValue
-                console.log('Rounding comparison:', {
+                // Check if invoice amount is within the range (amount ± roundOffValue)
+                const lowerBound = amount ? amount - roundOffValue : 0
+                const upperBound = amount ? amount + roundOffValue : 0
+                const isInRange = invoiceAmount >= lowerBound && invoiceAmount <= upperBound
+                
+                console.log('Range comparison:', {
                     invoice: invoice.name,
                     invoiceAmount,
-                    roundedInvoiceAmount,
                     transactionAmount: amount,
-                    roundedAmount,
+                    range: `${lowerBound} - ${upperBound}`,
                     roundOffValue,
-                    match: roundedInvoiceAmount === roundedAmount
+                    isInRange
                 })
-                return roundedInvoiceAmount === roundedAmount
+                return isInRange
             })
-            console.log('After rounded off filter:', filtered.length)
+            console.log('After range-based filter:', filtered.length)
         }
         
         // Filter outstanding amounts above paid amount
