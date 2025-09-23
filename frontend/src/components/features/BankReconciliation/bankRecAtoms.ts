@@ -36,3 +36,10 @@ export const bankRecRecordJournalEntryModalAtom = atom(false)
 export const bankRecUnreconcileModalAtom = atom<string>('')
 
 export const bankRecMatchFilters = atomWithStorage<string[]>('mint-bank-rec-match-filters', ['payment_entry', 'journal_entry', 'sales_invoice', 'exact_amount_match'])
+
+// Sorting atoms for invoice matching
+export type SortField = 'outstanding_amount' | 'posting_date' | 'customer_name' | 'grand_total' | 'due_date'
+export type SortOrder = 'asc' | 'desc'
+
+export const bankRecInvoiceSortFieldAtom = atomWithStorage<SortField>('mint-bank-rec-invoice-sort-field', 'outstanding_amount')
+export const bankRecInvoiceSortOrderAtom = atomWithStorage<SortOrder>('mint-bank-rec-invoice-sort-order', 'asc')

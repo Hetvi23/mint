@@ -2,12 +2,11 @@ import React, { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { FileText, User, Calendar, DollarSign, Search, ExternalLink, ArrowUpDown } from "lucide-react"
+import { FileText, User, Calendar, DollarSign, Search, ExternalLink } from "lucide-react"
 import { formatCurrency } from "@/lib/numbers"
 import { formatDate } from "@/lib/date"
 import { UnreconciledTransaction, useIsTransactionWithdrawal } from "./utils"
-import { bankRecMatchFilters, bankRecRecordPaymentModalAtom } from "./bankRecAtoms"
+import { bankRecMatchFilters, bankRecRecordPaymentModalAtom, bankRecInvoiceSortFieldAtom, bankRecInvoiceSortOrderAtom } from "./bankRecAtoms"
 import { useAtomValue, useSetAtom } from "jotai"
 import _ from "@/lib/translate"
 import { useCurrentCompany } from '@/hooks/useCurrentCompany'
@@ -28,19 +27,16 @@ interface SalesInvoiceDetailsProps {
     transaction: UnreconciledTransaction
 }
 
-type SortField = 'outstanding_amount' | 'posting_date' | 'customer_name' | 'grand_total' | 'due_date'
-type SortOrder = 'asc' | 'desc'
-
 const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }) => {
     const [isLoading, setIsLoading] = useState(false)
     const [invoices, setInvoices] = useState<SalesInvoice[]>([])
     const [error, setError] = useState<string | null>(null)
     const [filteredInvoices, setFilteredInvoices] = useState<SalesInvoice[]>([])
-    const [sortField, setSortField] = useState<SortField>('outstanding_amount')
-    const [sortOrder, setSortOrder] = useState<SortOrder>('asc')
 
     const { amount } = useIsTransactionWithdrawal(transaction)
     const matchFilters = useAtomValue(bankRecMatchFilters)
+    const sortField = useAtomValue(bankRecInvoiceSortFieldAtom)
+    const sortOrder = useAtomValue(bankRecInvoiceSortOrderAtom)
     const setRecordPaymentModalOpen = useSetAtom(bankRecRecordPaymentModalAtom)
     const currentCompany = useCurrentCompany()
 
@@ -400,88 +396,13 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                     </CardContent>
                 </Card>
 
-                {/* Sorting Controls - Show even when no results */}
-                <div className="flex items-center gap-3 p-3 bg-yellow-100 rounded-lg border-2 border-yellow-400">
-                    <div className="flex items-center gap-2">
-                        <ArrowUpDown className="h-4 w-4 text-gray-600" />
-                        <span className="text-sm font-medium text-gray-700">Sort by:</span>
-                    </div>
-                    
-                    <Select value={sortField} onValueChange={(value: SortField) => setSortField(value)}>
-                        <SelectTrigger className="w-40 h-8">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="outstanding_amount">Outstanding Amount</SelectItem>
-                            <SelectItem value="posting_date">Posting Date</SelectItem>
-                            <SelectItem value="customer_name">Customer Name</SelectItem>
-                            <SelectItem value="grand_total">Total Amount</SelectItem>
-                            <SelectItem value="due_date">Due Date</SelectItem>
-                        </SelectContent>
-                    </Select>
-
-                    <Select value={sortOrder} onValueChange={(value: SortOrder) => setSortOrder(value)}>
-                        <SelectTrigger className="w-32 h-8">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="asc">Ascending</SelectItem>
-                            <SelectItem value="desc">Descending</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
             </div>
         )
     }
 
-    console.log('Rendering main section with sorting controls and', filteredInvoices.length, 'invoices')
+    console.log('Rendering main section with', filteredInvoices.length, 'invoices')
     return (
         <div className="space-y-3">
-            <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
-                <div className="flex items-center gap-2 mb-1">
-                    <Search className="h-4 w-4 text-blue-600" />
-                    <span className="font-medium text-blue-800">Invoice Matching Results</span>
-                </div>
-                <p className="text-xs text-blue-700">
-                    Found {filteredInvoices.length} sales invoice(s) with matching amount (₹{formatCurrency(amount || 0)}). 
-                    These could be customer payments received for these invoices.
-                </p>
-                <div className="text-xs text-blue-600 mt-2">
-                    {matchFilters.includes('exact_amount_match') ? '✓ Exact Amount Match' : '✓ Rounded Off Value'}
-                    • Sorted by {sortField.replace('_', ' ')} ({sortOrder === 'asc' ? 'Ascending' : 'Descending'})
-                </div>
-            </div>
-
-            {/* Sorting Controls */}
-            <div className="flex items-center gap-3 p-3 bg-yellow-100 rounded-lg border-2 border-yellow-400">
-                <div className="flex items-center gap-2">
-                    <ArrowUpDown className="h-4 w-4 text-gray-600" />
-                    <span className="text-sm font-medium text-gray-700">Sort by:</span>
-                </div>
-                
-                <Select value={sortField} onValueChange={(value: SortField) => setSortField(value)}>
-                    <SelectTrigger className="w-40 h-8">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="outstanding_amount">Outstanding Amount</SelectItem>
-                        <SelectItem value="posting_date">Posting Date</SelectItem>
-                        <SelectItem value="customer_name">Customer Name</SelectItem>
-                        <SelectItem value="grand_total">Total Amount</SelectItem>
-                        <SelectItem value="due_date">Due Date</SelectItem>
-                    </SelectContent>
-                </Select>
-
-                <Select value={sortOrder} onValueChange={(value: SortOrder) => setSortOrder(value)}>
-                    <SelectTrigger className="w-32 h-8">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="asc">Ascending</SelectItem>
-                        <SelectItem value="desc">Descending</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
             {filteredInvoices.map((invoice) => (
                 <Card key={invoice.name} className="border-green-200 bg-green-50/30 hover:shadow-md transition-all duration-200">
                     <CardHeader className="pb-2">
