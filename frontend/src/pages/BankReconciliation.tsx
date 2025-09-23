@@ -7,9 +7,7 @@ import BankTransactions from "@/components/features/BankReconciliation/BankTrans
 import BankTransactionUnreconcileModal from "@/components/features/BankReconciliation/BankTransactionUnreconcileModal"
 import CompanySelector from "@/components/features/BankReconciliation/CompanySelector"
 import IncorrectlyClearedEntries from "@/components/features/BankReconciliation/IncorrectlyClearedEntries"
-import InvoiceSortingControls from "@/components/features/BankReconciliation/InvoiceSortingControls"
 import MatchAndReconcile from "@/components/features/BankReconciliation/MatchAndReconcile"
-import RoundOffFilter from "@/components/features/BankReconciliation/RoundOffFilter"
 import RuleConfigureButton from "@/components/features/BankReconciliation/Rules/RuleConfigureButton"
 import Settings from "@/components/features/Settings/Settings"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -46,8 +44,6 @@ const BankReconciliation = () => {
                     <div className="flex items-center gap-2">
                         <RuleConfigureButton />
                         <Settings />
-                        <RoundOffFilter />
-                        <InvoiceSortingControls />
                         <CompanySelector />
                         <BankRecDateFilter />
                     </div>

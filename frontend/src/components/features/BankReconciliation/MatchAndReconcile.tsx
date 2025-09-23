@@ -31,6 +31,8 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import SelectedTransactionsTable from "./SelectedTransactionsTable"
 import MatchFilters from "./MatchFilters"
 import InvoiceMatching from "./InvoiceMatching"
+import InvoiceSortingControls from "./InvoiceSortingControls"
+import RoundOffFilter from "./RoundOffFilter"
 import SalesInvoiceDetails from "./SalesInvoiceDetails"
 
 const MatchAndReconcile = ({ contentHeight }: { contentHeight: number }) => {
@@ -460,7 +462,11 @@ const OptionsForSingleTransaction = ({ transaction, contentHeight }: { transacti
                         </TooltipContent>
                     </Tooltip>
                 </div>
-                <MatchFilters />
+                <div className="flex items-center gap-2">
+                    <MatchFilters />
+                    <RoundOffFilter />
+                    <InvoiceSortingControls />
+                </div>
             </div>
         </TooltipProvider>
         {transaction.matched_rule && <RuleAction transaction={transaction} />}

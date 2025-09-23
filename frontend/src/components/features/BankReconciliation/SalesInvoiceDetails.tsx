@@ -286,56 +286,6 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
         }
     }
 
-    const showAllInvoices = async () => {
-        try {
-            console.log('Fetching all sales invoices for debugging...')
-            setIsLoading(true)
-            
-            const response = await fetch('/api/method/frappe.client.get_list', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    doctype: 'Sales Invoice',
-                    fields: ['name', 'customer', 'customer_name', 'posting_date', 'grand_total', 'status', 'outstanding_amount', 'due_date', 'currency'],
-                    filters: [
-                        ['status', '!=', 'Cancelled'],
-                        ['status', '!=', 'Draft'],
-                        ['status', '!=', 'Paid'],
-                        ['company', '=', currentCompany]
-                    ],
-                    order_by: 'posting_date desc',
-                    limit_page_length: 50
-                })
-            })
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`)
-            }
-
-            const data = await response.json()
-            console.log('All invoices response:', data)
-
-            if (data && data.message && data.message.length > 0) {
-                console.log('Found all invoices:', data.message)
-                setInvoices(data.message)
-                filterAndSortInvoices(data.message)
-            } else {
-                console.log('No invoices found in system')
-                setInvoices([])
-                setFilteredInvoices([])
-            }
-        } catch (err) {
-            console.error('Error fetching all invoices:', err)
-            const errorMessage = err instanceof Error ? err.message : 'Unknown error'
-            setError(`Failed to load all invoices: ${errorMessage}`)
-        } finally {
-            setIsLoading(false)
-        }
-    }
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -389,34 +339,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
     }
 
     if (filteredInvoices.length === 0) {
-        console.log('Rendering "no results" section with sorting controls')
-        return (
-            <div className="space-y-3">
-                <Card className="border-gray-200 bg-gray-50/30">
-                    <CardContent className="pt-4">
-                        <div className="flex items-center gap-3">
-                            <FileText className="h-5 w-5 text-gray-600" />
-                            <div className="flex flex-col gap-1">
-                                <span className="text-sm text-gray-700">No matching sales invoices found for ₹{formatCurrency(amount || 0)}</span>
-                                <span className="text-xs text-gray-500">Searched for exact amount match and similar outstanding invoices</span>
-                            </div>
-                        </div>
-                        <div className="mt-3">
-                            <Button 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={showAllInvoices}
-                                className="text-xs"
-                            >
-                                <Search className="h-3 w-3 mr-1" />
-                                Show All Invoices (Debug)
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-
-            </div>
-        )
+        return null
     }
 
     console.log('Rendering main section with', filteredInvoices.length, 'invoices')

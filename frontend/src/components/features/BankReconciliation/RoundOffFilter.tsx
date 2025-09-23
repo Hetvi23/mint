@@ -94,13 +94,6 @@ const RoundOffFilter = () => {
                         </div>
                     </div>
 
-                    <div className="text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                        <strong>Current Value:</strong> {roundOffValue}<br/>
-                        <strong>Examples:</strong><br/>
-                        • 100: Rounds to nearest ₹100<br/>
-                        • 50: Rounds to nearest ₹50<br/>
-                        • 1000: Rounds to nearest ₹1000
-                    </div>
                 </div>
             </PopoverContent>
         </Popover>
