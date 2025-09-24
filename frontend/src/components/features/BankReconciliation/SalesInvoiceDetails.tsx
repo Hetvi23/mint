@@ -110,13 +110,6 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             console.log('After range-based filter:', filtered.length)
         }
         
-        // Filter outstanding amounts above paid amount
-        filtered = filtered.filter(invoice => {
-            const outstandingAmount = invoice.outstanding_amount || invoice.grand_total
-            return amount ? outstandingAmount >= amount : true
-        })
-        console.log('After outstanding amount filter (>= paid amount):', filtered.length)
-        
         // Sort by selected field and order
         filtered.sort((a, b) => {
             let valueA: any, valueB: any
@@ -180,8 +173,8 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
         try {
             console.log('Searching for sales invoices with amount:', amount)
             
-            // Use Frappe SDK to get sales invoices
-            const response = await fetch('/api/method/frappe.client.get_list', {
+            // First try exact match
+            const exactResponse = await fetch('/api/method/frappe.client.get_list', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -203,22 +196,22 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                 })
             })
 
-            console.log('API Response status:', response.status)
+            console.log('Exact match API Response status:', exactResponse.status)
             
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`)
+            if (!exactResponse.ok) {
+                throw new Error(`HTTP error! status: ${exactResponse.status}`)
             }
 
-            const data = await response.json()
-            console.log('API Response data:', data)
+            const exactData = await exactResponse.json()
+            console.log('Exact match API Response data:', exactData)
 
-            if (data && data.message && data.message.length > 0) {
-                console.log('Found sales invoices:', data.message)
-                setInvoices(data.message)
-                filterAndSortInvoices(data.message)
+            if (exactData && exactData.message && exactData.message.length > 0) {
+                console.log('Found exact match sales invoices:', exactData.message)
+                setInvoices(exactData.message)
+                filterAndSortInvoices(exactData.message)
             } else {
-                console.log('No exact amount match found, trying fallback search...')
-                await fetchFallbackInvoices()
+                console.log('No exact amount match found, trying broader search...')
+                await fetchBroaderInvoices()
             }
         } catch (err) {
             console.error('Error fetching sales invoices:', err)
@@ -231,11 +224,11 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
         }
     }
 
-    const fetchFallbackInvoices = async () => {
+    const fetchBroaderInvoices = async () => {
         try {
-            console.log('Performing fallback search for sales invoices...')
+            console.log('Performing broader search for sales invoices...')
             
-            // Search for invoices with outstanding amounts
+            // Search for invoices with outstanding amounts within a reasonable range
             const response = await fetch('/api/method/frappe.client.get_list', {
                 method: 'POST',
                 headers: {
@@ -254,7 +247,7 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
                         ['company', '=', currentCompany]
                     ],
                     order_by: 'posting_date desc',
-                    limit_page_length: 20
+                    limit_page_length: 50 // Increased limit to get more invoices for range filtering
                 })
             })
 
@@ -263,26 +256,18 @@ const SalesInvoiceDetails: React.FC<SalesInvoiceDetailsProps> = ({ transaction }
             }
 
             const data = await response.json()
-            console.log('Fallback search response:', data)
+            console.log('Broader search response:', data)
 
             if (data && data.message && data.message.length > 0) {
-                // Filter invoices that might be relevant (within 10% of the amount)
-                const relevantInvoices = data.message.filter((invoice: SalesInvoice) => {
-                    const invoiceAmount = invoice.outstanding_amount || invoice.grand_total
-                    const difference = Math.abs(invoiceAmount - (amount || 0))
-                    const percentageDifference = amount ? (difference / amount) * 100 : 0
-                    return percentageDifference <= 10 // Within 10%
-                })
-
-                console.log('Relevant invoices from fallback search:', relevantInvoices)
-                setInvoices(relevantInvoices)
-                filterAndSortInvoices(relevantInvoices)
+                console.log('Found invoices from broader search:', data.message.length)
+                setInvoices(data.message)
+                filterAndSortInvoices(data.message)
             } else {
-                console.log('No invoices found in fallback search')
+                console.log('No invoices found in broader search')
                 setInvoices([])
             }
         } catch (err) {
-            console.error('Error in fallback search:', err)
+            console.error('Error in broader search:', err)
             setInvoices([])
         }
     }
