@@ -830,6 +830,7 @@ interface OutstandingInvoice {
     voucher_type: string
     voucher_no: string
     bill_no?: string
+    posting_date: string
     due_date: string
     invoice_amount: number
     outstanding_amount: number,
@@ -949,6 +950,9 @@ const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
                         Invoice No
                     </TableHead>
                     <TableHead>
+                        Invoice Date
+                    </TableHead>
+                    <TableHead>
                         Due Date
                     </TableHead>
                     <TableHead className="text-right">
@@ -993,6 +997,9 @@ const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
                         </TableCell>
                         <TableCell>
                             {ref.bill_no ?? "-"}
+                        </TableCell>
+                        <TableCell>
+                            {formatDate(ref.posting_date)}
                         </TableCell>
                         <TableCell>
                             {formatDate(ref.due_date)}
