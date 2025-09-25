@@ -8,9 +8,9 @@ def get_bank_transactions(bank_account, from_date=None, to_date=None, all_transa
     filters.append(["docstatus", "=", 1])
     if not all_transactions:
         filters.append(["unallocated_amount", ">", 0.0])
-    if to_date:
+    if to_date and to_date != "to_date":
         filters.append(["date", "<=", to_date])
-    if from_date:
+    if from_date and from_date != "from_date":
         filters.append(["date", ">=", from_date])
 
     transactions = frappe.get_list(
