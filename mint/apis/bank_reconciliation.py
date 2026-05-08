@@ -5,6 +5,12 @@ import datetime
 from erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool import create_payment_entry_bts, create_journal_entry_bts
 from erpnext.accounts.party import get_party_account
 from erpnext import get_default_cost_center
+from erpnext.accounts.doctype.payment_entry.payment_entry import (
+    get_outstanding_reference_documents,
+    get_reference_details,
+)
+from erpnext.accounts.utils import get_account_currency
+from erpnext import get_company_currency
 
 @frappe.whitelist()
 def clear_clearing_date(voucher_type: str, voucher_name: str):
@@ -440,4 +446,104 @@ def search_for_transfer_transaction(transaction_id: str):
         }
 
     return None
+
+
+@frappe.whitelist(methods=["GET"])
+def get_outstanding_references_for_record_payment(args: dict | str):
+    """
+    Return outstanding references for Record Payment popup with optional doctype filtering.
+    Includes:
+    - Standard outstanding references from ERPNext (Invoices / Orders)
+    - Quotation rows for Customer when requested
+    """
+    if isinstance(args, str):
+        args = json.loads(args)
+
+    args = args or {}
+    selected_doctypes = args.get("selected_doctypes") or []
+    if isinstance(selected_doctypes, str):
+        try:
+            selected_doctypes = json.loads(selected_doctypes)
+        except Exception:
+            selected_doctypes = [selected_doctypes]
+
+    base_args = dict(args)
+    base_args.pop("selected_doctypes", None)
+    include_quotations = bool(base_args.pop("include_quotations", True))
+    base_args["get_outstanding_invoices"] = True
+    base_args["get_orders_to_be_billed"] = True
+
+    data = get_outstanding_reference_documents(base_args) or []
+
+    if include_quotations and base_args.get("party_type") == "Customer" and base_args.get("party"):
+        company = base_args.get("company")
+        party = base_args.get("party")
+        party_account = base_args.get("party_account")
+        party_account_currency = (
+            get_account_currency(party_account)
+            if party_account
+            else get_company_currency(company)
+        )
+
+        quotation_filters = {
+            "docstatus": 1,
+            "quotation_to": "Customer",
+            "party_name": party,
+        }
+        if company:
+            quotation_filters["company"] = company
+
+        quotations = frappe.get_all(
+            "Quotation",
+            filters=quotation_filters,
+            fields=["name", "transaction_date", "valid_till", "grand_total"],
+            order_by="transaction_date desc, modified desc",
+        )
+
+        for q in quotations:
+            try:
+                details = get_reference_details(
+                    "Quotation",
+                    q.name,
+                    party_account_currency,
+                    base_args.get("party_type"),
+                    party,
+                )
+            except Exception:
+                continue
+
+            outstanding_amount = float(details.get("outstanding_amount") or 0)
+            if outstanding_amount <= 0:
+                continue
+
+            data.append(
+                frappe._dict(
+                    {
+                        "voucher_type": "Quotation",
+                        "voucher_no": q.name,
+                        "bill_no": None,
+                        "posting_date": q.transaction_date,
+                        "due_date": q.valid_till or q.transaction_date,
+                        "invoice_amount": float(details.get("total_amount") or q.grand_total or 0),
+                        "outstanding_amount": outstanding_amount,
+                        "payment_term": None,
+                        "payment_term_outstanding": None,
+                        "account": details.get("account"),
+                        "allocated_amount": 0,
+                    }
+                )
+            )
+
+    if selected_doctypes:
+        allowed = set(selected_doctypes)
+        data = [row for row in data if row.get("voucher_type") in allowed]
+
+    data.sort(
+        key=lambda row: (
+            row.get("posting_date") or "",
+            row.get("voucher_no") or "",
+        ),
+        reverse=True,
+    )
+    return data
 

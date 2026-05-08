@@ -813,12 +813,12 @@ const GetUnpaidInvoicesButton = () => {
 
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             {partyType && party && <DialogTrigger asChild>
-                <Button variant='outline' size='sm' type='button'>Get Unpaid Invoices</Button>
+                <Button variant='outline' size='sm' type='button'>Get Unpaid References</Button>
             </DialogTrigger>}
             <DialogContent className="min-w-[75vw]">
                 <DialogHeader>
-                    <DialogTitle>Select Invoices</DialogTitle>
-                    <DialogDescription>Unpaid invoices from {partyName} for {formatCurrency(amount)}.</DialogDescription>
+                    <DialogTitle>Select References</DialogTitle>
+                    <DialogDescription>Outstanding references from {partyName} for {formatCurrency(amount)}.</DialogDescription>
                 </DialogHeader>
                 <FetchInvoicesModal onClose={() => setIsOpen(false)} />
             </DialogContent>
@@ -845,18 +845,38 @@ const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
 
     const { allocatePartyAmount } = usePaymentEntryCalculations()
 
+    const partyType = getValues("party_type")
+    const referenceTypeOptions = useMemo(() => {
+        if (partyType === "Customer") {
+            return ["Sales Invoice", "Sales Order", "Quotation"]
+        }
+        if (partyType === "Supplier") {
+            return ["Purchase Invoice", "Purchase Order"]
+        }
+        return ["Sales Invoice", "Purchase Invoice", "Sales Order", "Purchase Order", "Quotation"]
+    }, [partyType])
+
+    const [selectedReferenceTypes, setSelectedReferenceTypes] = useState<string[]>(referenceTypeOptions)
+
+    useEffect(() => {
+        setSelectedReferenceTypes(referenceTypeOptions)
+    }, [referenceTypeOptions])
+
     const { data, isLoading, error } = useFrappeGetCall<{
         message: OutstandingInvoice[],
         _server_messages?: string
-    }>('erpnext.accounts.doctype.payment_entry.payment_entry.get_outstanding_reference_documents', {
+    }>('mint.apis.bank_reconciliation.get_outstanding_references_for_record_payment', {
         args: {
-            company: getValues('company'),
-            posting_date: getValues('posting_date'),
-            party_type: getValues('party_type'),
-            party: getValues('party'),
-            party_account: getValues('payment_type') === 'Pay' ? getValues('paid_to') : getValues('paid_from'),
-            get_outstanding_invoices: true,
-            allocate_payment_amount: 1
+            args: {
+                company: getValues('company'),
+                posting_date: getValues('posting_date'),
+                party_type: getValues('party_type'),
+                party: getValues('party'),
+                party_account: getValues('payment_type') === 'Pay' ? getValues('paid_to') : getValues('paid_from'),
+                allocate_payment_amount: 1,
+                selected_doctypes: selectedReferenceTypes,
+                include_quotations: true,
+            },
         }
     })
 
@@ -923,6 +943,25 @@ const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
         })
     }
     return <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-muted-foreground">Reference Types:</span>
+            {referenceTypeOptions.map((type) => (
+                <label key={type} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                        checked={selectedReferenceTypes.includes(type)}
+                        onCheckedChange={(checked) => {
+                            setSelectedReferenceTypes((prev) => {
+                                if (checked) {
+                                    return prev.includes(type) ? prev : [...prev, type]
+                                }
+                                return prev.filter((t) => t !== type)
+                            })
+                        }}
+                    />
+                    <span>{type}</span>
+                </label>
+            ))}
+        </div>
         {isLoading ? <TableLoader columns={6} /> : null}
         {error && <ErrorBanner error={error} />}
         {error && <ErrorBanner error={allocateAmountToReferencesError} />}
@@ -1017,6 +1056,7 @@ const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
         <div className="flex justify-between items-center">
             <div className="flex gap-2">
                 <span className="text-muted-foreground">Invoices: <span className="text-foreground font-mono font-medium">{selectedInvoices.length}</span></span> /
+                <span className="text-muted-foreground">Types: <span className="text-foreground font-mono font-medium">{selectedReferenceTypes.length}</span></span> /
                 <span className="text-muted-foreground">Total: <span className="text-foreground font-mono font-medium">{formatCurrency(selectedInvoices.reduce((acc, invoice) => acc + invoice.outstanding_amount, 0))}</span></span>
             </div>
             <DialogFooter className="pt-2">
