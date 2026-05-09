@@ -579,8 +579,8 @@ const InvoicesSection = ({ currency }: { currency: string }) => {
     }, [remove, selectedRows])
 
     return <div className="flex flex-col gap-2">
-        <div className="flex gap-4 items-center">
-            <H4 className="text-base">Invoices</H4>
+        <div className="flex gap-4 items-center flex-wrap">
+            <H4 className="text-base">{_("References")}</H4>
             <GetUnpaidInvoicesButton />
         </div>
         <Table>
@@ -593,7 +593,7 @@ const InvoicesSection = ({ currency }: { currency: string }) => {
                         checked={selectedRows.length > 0 && selectedRows.length === fields.length}
                         onCheckedChange={onSelectAll} /></TableHead>
                     <TableHead>{_("Reference Document")}</TableHead>
-                    <TableHead>{_("Invoice No")}</TableHead>
+                    <TableHead>{_("Bill No")}</TableHead>
                     <TableHead>{_("Due Date")}</TableHead>
                     <TableHead className="text-right">{_("Grand Total")}</TableHead>
                     <TableHead className="text-right">{_("Outstanding")}</TableHead>
@@ -698,7 +698,7 @@ const DifferenceButton = ({ index, currency }: { index: number, currency: string
                 </Button>
             </TooltipTrigger>
             <TooltipContent>
-                {_("The invoice is not fully allocated as there is a difference of {0}.", [formatCurrency(difference, currency) ?? ''])}
+                {_("This reference is not fully allocated; difference {0}.", [formatCurrency(difference, currency) ?? ''])}
                 <br />
                 {_("Click to pay in full.")}
             </TooltipContent>
@@ -808,17 +808,38 @@ const GetUnpaidInvoicesButton = () => {
     const party = useWatch({ control, name: 'party' })
     const partyName = useWatch({ control, name: 'party_name' })
     const amount = useWatch({ control, name: 'paid_amount' })
+    const paymentType = useWatch({ control, name: 'payment_type' })
+    const paidFrom = useWatch({ control, name: 'paid_from' })
+    const paidTo = useWatch({ control, name: 'paid_to' })
+
+    const partyAccount = paymentType === 'Pay' ? paidTo : paidFrom
+    const canFetchReferences = Boolean(partyType && party && partyAccount)
 
     return <>
 
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            {partyType && party && <DialogTrigger asChild>
-                <Button variant='outline' size='sm' type='button'>Get Unpaid References</Button>
-            </DialogTrigger>}
+            {canFetchReferences ? (
+                <DialogTrigger asChild>
+                    <Button variant='outline' size='sm' type='button'>{_("Get Unpaid References")}</Button>
+                </DialogTrigger>
+            ) : (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span tabIndex={0} className="inline-flex">
+                            <Button variant='outline' size='sm' type='button' disabled>
+                                {_("Get Unpaid References")}
+                            </Button>
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-xs">
+                        {_("Select Party Type, Party, and Paid From/Paid To (party GL account) first. Then fetch Sales Invoice, Sales Order, Quotation (customer), or purchase documents (supplier).")}
+                    </TooltipContent>
+                </Tooltip>
+            )}
             <DialogContent className="min-w-[75vw]">
                 <DialogHeader>
-                    <DialogTitle>Select References</DialogTitle>
-                    <DialogDescription>Outstanding references from {partyName} for {formatCurrency(amount)}.</DialogDescription>
+                    <DialogTitle>{_("Select References")}</DialogTitle>
+                    <DialogDescription>{_("Outstanding references from {0} for {1}.", [partyName || '', formatCurrency(amount) ?? ''])}</DialogDescription>
                 </DialogHeader>
                 <FetchInvoicesModal onClose={() => setIsOpen(false)} />
             </DialogContent>
@@ -986,10 +1007,10 @@ const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
                         Name
                     </TableHead>
                     <TableHead>
-                        Invoice No
+                        {_("Bill No")}
                     </TableHead>
                     <TableHead>
-                        Invoice Date
+                        {_("Posting Date")}
                     </TableHead>
                     <TableHead>
                         Due Date
@@ -1055,7 +1076,7 @@ const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
         </Table> : null}
         <div className="flex justify-between items-center">
             <div className="flex gap-2">
-                <span className="text-muted-foreground">Invoices: <span className="text-foreground font-mono font-medium">{selectedInvoices.length}</span></span> /
+                <span className="text-muted-foreground">{_("Selected:")} <span className="text-foreground font-mono font-medium">{selectedInvoices.length}</span></span> /
                 <span className="text-muted-foreground">Types: <span className="text-foreground font-mono font-medium">{selectedReferenceTypes.length}</span></span> /
                 <span className="text-muted-foreground">Total: <span className="text-foreground font-mono font-medium">{formatCurrency(selectedInvoices.reduce((acc, invoice) => acc + invoice.outstanding_amount, 0))}</span></span>
             </div>
