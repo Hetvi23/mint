@@ -579,8 +579,8 @@ const InvoicesSection = ({ currency }: { currency: string }) => {
     }, [remove, selectedRows])
 
     return <div className="flex flex-col gap-2">
-        <div className="flex gap-4 items-center">
-            <H4 className="text-base">Invoices</H4>
+        <div className="flex gap-4 items-center flex-wrap">
+            <H4 className="text-base">{_("References")}</H4>
             <GetUnpaidInvoicesButton />
         </div>
         <Table>
@@ -593,7 +593,7 @@ const InvoicesSection = ({ currency }: { currency: string }) => {
                         checked={selectedRows.length > 0 && selectedRows.length === fields.length}
                         onCheckedChange={onSelectAll} /></TableHead>
                     <TableHead>{_("Reference Document")}</TableHead>
-                    <TableHead>{_("Invoice No")}</TableHead>
+                    <TableHead>{_("Bill No")}</TableHead>
                     <TableHead>{_("Due Date")}</TableHead>
                     <TableHead className="text-right">{_("Grand Total")}</TableHead>
                     <TableHead className="text-right">{_("Outstanding")}</TableHead>
@@ -698,7 +698,7 @@ const DifferenceButton = ({ index, currency }: { index: number, currency: string
                 </Button>
             </TooltipTrigger>
             <TooltipContent>
-                {_("The invoice is not fully allocated as there is a difference of {0}.", [formatCurrency(difference, currency) ?? ''])}
+                {_("This reference is not fully allocated; difference {0}.", [formatCurrency(difference, currency) ?? ''])}
                 <br />
                 {_("Click to pay in full.")}
             </TooltipContent>
@@ -808,17 +808,38 @@ const GetUnpaidInvoicesButton = () => {
     const party = useWatch({ control, name: 'party' })
     const partyName = useWatch({ control, name: 'party_name' })
     const amount = useWatch({ control, name: 'paid_amount' })
+    const paymentType = useWatch({ control, name: 'payment_type' })
+    const paidFrom = useWatch({ control, name: 'paid_from' })
+    const paidTo = useWatch({ control, name: 'paid_to' })
+
+    const partyAccount = paymentType === 'Pay' ? paidTo : paidFrom
+    const canFetchReferences = Boolean(partyType && party && partyAccount)
 
     return <>
 
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            {partyType && party && <DialogTrigger asChild>
-                <Button variant='outline' size='sm' type='button'>Get Unpaid Invoices</Button>
-            </DialogTrigger>}
+            {canFetchReferences ? (
+                <DialogTrigger asChild>
+                    <Button variant='outline' size='sm' type='button'>{_("Get Unpaid References")}</Button>
+                </DialogTrigger>
+            ) : (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span tabIndex={0} className="inline-flex">
+                            <Button variant='outline' size='sm' type='button' disabled>
+                                {_("Get Unpaid References")}
+                            </Button>
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-xs">
+                        {_("Select Party Type, Party, and Paid From/Paid To (party GL account) first. Then fetch Sales Invoice, Sales Order, Quotation (customer), or purchase documents (supplier).")}
+                    </TooltipContent>
+                </Tooltip>
+            )}
             <DialogContent className="min-w-[75vw]">
                 <DialogHeader>
-                    <DialogTitle>Select Invoices</DialogTitle>
-                    <DialogDescription>Unpaid invoices from {partyName} for {formatCurrency(amount)}.</DialogDescription>
+                    <DialogTitle>{_("Select References")}</DialogTitle>
+                    <DialogDescription>{_("Outstanding references from {0} for {1}.", [partyName || '', formatCurrency(amount) ?? ''])}</DialogDescription>
                 </DialogHeader>
                 <FetchInvoicesModal onClose={() => setIsOpen(false)} />
             </DialogContent>
@@ -830,6 +851,7 @@ interface OutstandingInvoice {
     voucher_type: string
     voucher_no: string
     bill_no?: string
+    posting_date?: string
     due_date: string
     invoice_amount: number
     outstanding_amount: number,
@@ -840,22 +862,40 @@ interface OutstandingInvoice {
 }
 const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
 
-    const { getValues, setValue } = useFormContext<PaymentEntry>()
+    const { getValues, setValue, control } = useFormContext<PaymentEntry>()
 
     const { allocatePartyAmount } = usePaymentEntryCalculations()
+
+    const partyType = useWatch({ control, name: "party_type" })
+    const referenceTypeOptions = useMemo(() => {
+        if (partyType === "Customer") {
+            return ["Sales Invoice", "Sales Order", "Quotation"]
+        }
+        if (partyType === "Supplier") {
+            return ["Purchase Invoice", "Purchase Order"]
+        }
+        return ["Sales Invoice", "Purchase Invoice", "Sales Order", "Purchase Order", "Quotation"]
+    }, [partyType])
+
+    const [selectedReferenceTypes, setSelectedReferenceTypes] = useState<string[]>(referenceTypeOptions)
+
+    useEffect(() => {
+        setSelectedReferenceTypes(referenceTypeOptions)
+    }, [referenceTypeOptions])
 
     const { data, isLoading, error } = useFrappeGetCall<{
         message: OutstandingInvoice[],
         _server_messages?: string
-    }>('erpnext.accounts.doctype.payment_entry.payment_entry.get_outstanding_reference_documents', {
+    }>('mint.apis.bank_reconciliation.get_outstanding_references_for_record_payment', {
         args: {
             company: getValues('company'),
             posting_date: getValues('posting_date'),
             party_type: getValues('party_type'),
             party: getValues('party'),
             party_account: getValues('payment_type') === 'Pay' ? getValues('paid_to') : getValues('paid_from'),
-            get_outstanding_invoices: true,
-            allocate_payment_amount: 1
+            allocate_payment_amount: 1,
+            selected_doctypes: selectedReferenceTypes,
+            include_quotations: true,
         }
     })
 
@@ -922,6 +962,25 @@ const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
         })
     }
     return <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-muted-foreground">{_("Reference types")}:</span>
+            {referenceTypeOptions.map((type) => (
+                <label key={type} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                        checked={selectedReferenceTypes.includes(type)}
+                        onCheckedChange={(checked) => {
+                            setSelectedReferenceTypes((prev) => {
+                                if (checked) {
+                                    return prev.includes(type) ? prev : [...prev, type]
+                                }
+                                return prev.filter((t) => t !== type)
+                            })
+                        }}
+                    />
+                    <span>{type}</span>
+                </label>
+            ))}
+        </div>
         {isLoading ? <TableLoader columns={6} /> : null}
         {error && <ErrorBanner error={error} />}
         {error && <ErrorBanner error={allocateAmountToReferencesError} />}
@@ -940,22 +999,25 @@ const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
                         }} />
                     </TableHead>
                     <TableHead>
-                        Type
+                        {_("Type")}
                     </TableHead>
                     <TableHead>
-                        Name
+                        {_("Name")}
                     </TableHead>
                     <TableHead>
-                        Invoice No
+                        {_("Bill No")}
                     </TableHead>
                     <TableHead>
-                        Due Date
+                        {_("Posting Date")}
+                    </TableHead>
+                    <TableHead>
+                        {_("Due Date")}
                     </TableHead>
                     <TableHead className="text-right">
-                        Grand Total
+                        {_("Grand Total")}
                     </TableHead>
                     <TableHead className="text-right">
-                        Outstanding
+                        {_("Outstanding")}
                     </TableHead>
                 </TableRow>
             </TableHeader>
@@ -995,6 +1057,9 @@ const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
                             {ref.bill_no ?? "-"}
                         </TableCell>
                         <TableCell>
+                            {ref.posting_date ? formatDate(ref.posting_date) : "-"}
+                        </TableCell>
+                        <TableCell>
                             {formatDate(ref.due_date)}
                         </TableCell>
                         <TableCell className="text-right">
@@ -1009,8 +1074,9 @@ const FetchInvoicesModal = ({ onClose }: { onClose: () => void }) => {
         </Table> : null}
         <div className="flex justify-between items-center">
             <div className="flex gap-2">
-                <span className="text-muted-foreground">Invoices: <span className="text-foreground font-mono font-medium">{selectedInvoices.length}</span></span> /
-                <span className="text-muted-foreground">Total: <span className="text-foreground font-mono font-medium">{formatCurrency(selectedInvoices.reduce((acc, invoice) => acc + invoice.outstanding_amount, 0))}</span></span>
+                <span className="text-muted-foreground">{_("Selected:")} <span className="text-foreground font-mono font-medium">{selectedInvoices.length}</span></span> /
+                <span className="text-muted-foreground">{_("Types:")} <span className="text-foreground font-mono font-medium">{selectedReferenceTypes.length}</span></span> /
+                <span className="text-muted-foreground">{_("Total:")} <span className="text-foreground font-mono font-medium">{formatCurrency(selectedInvoices.reduce((acc, invoice) => acc + invoice.outstanding_amount, 0))}</span></span>
             </div>
             <DialogFooter className="pt-2">
                 <DialogClose asChild>
