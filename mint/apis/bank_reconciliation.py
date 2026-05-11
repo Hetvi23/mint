@@ -12,6 +12,67 @@ from erpnext.accounts.doctype.payment_entry.payment_entry import (
 from erpnext.accounts.utils import get_account_currency
 from erpnext import get_company_currency
 
+
+def _expand_rows_with_payment_terms(data: list[dict]) -> list[dict]:
+    """
+    Ensure rows include payment_term when allocation based on payment terms is enabled.
+    If a voucher has multiple outstanding terms, split it into multiple rows.
+    """
+    if not data:
+        return data
+
+    expanded = []
+    for row in data:
+        voucher_type = row.get("voucher_type")
+        voucher_no = row.get("voucher_no")
+        existing_term = row.get("payment_term")
+
+        # If already term-split (or non-voucher row), keep as is.
+        if not voucher_type or not voucher_no or existing_term:
+            expanded.append(row)
+            continue
+
+        template = frappe.db.get_value(voucher_type, voucher_no, "payment_terms_template")
+        if not template:
+            expanded.append(row)
+            continue
+
+        allocate_by_terms = frappe.db.get_value(
+            "Payment Terms Template",
+            template,
+            "allocate_payment_based_on_payment_terms",
+        )
+        if not allocate_by_terms:
+            expanded.append(row)
+            continue
+
+        schedules = frappe.get_all(
+            "Payment Schedule",
+            filters={"parenttype": voucher_type, "parent": voucher_no},
+            fields=["payment_term", "outstanding"],
+            order_by="idx asc",
+        )
+        term_rows = [s for s in schedules if (s.get("payment_term") and float(s.get("outstanding") or 0) > 0)]
+        if not term_rows:
+            expanded.append(row)
+            continue
+
+        total_outstanding = float(row.get("outstanding_amount") or 0)
+        for i, s in enumerate(term_rows):
+            term_outstanding = float(s.get("outstanding") or 0)
+            cloned = frappe._dict(row.copy())
+            cloned["payment_term"] = s.get("payment_term")
+            cloned["payment_term_outstanding"] = term_outstanding
+            cloned["outstanding_amount"] = term_outstanding
+            # Keep row totals consistent when user selects all split rows.
+            cloned["allocated_amount"] = 0
+            # Preserve original total on each row; only outstanding changes per term.
+            if total_outstanding and i == 0:
+                cloned["_original_outstanding_amount"] = total_outstanding
+            expanded.append(cloned)
+
+    return expanded
+
 @frappe.whitelist()
 def clear_clearing_date(voucher_type: str, voucher_name: str):
     """
@@ -533,6 +594,8 @@ def get_outstanding_references_for_record_payment(args: dict | str):
                     }
                 )
             )
+
+    data = _expand_rows_with_payment_terms(data)
 
     if selected_doctypes:
         allowed = set(selected_doctypes)
