@@ -32,7 +32,19 @@ def _expand_rows_with_payment_terms(data: list[dict]) -> list[dict]:
             expanded.append(row)
             continue
 
-        template = frappe.db.get_value(voucher_type, voucher_no, "payment_terms_template")
+        # Guard against doctypes/installs where payment_terms_template doesn't exist
+        # on the parent table (out-of-sync schema, removed-by-custom-app, etc.).
+        # `has_field` checks meta (JSON); the try/except catches the case where the
+        # column is missing from the actual SQL table after a partial migration.
+        if not frappe.get_meta(voucher_type).has_field("payment_terms_template"):
+            expanded.append(row)
+            continue
+
+        try:
+            template = frappe.db.get_value(voucher_type, voucher_no, "payment_terms_template")
+        except Exception:
+            expanded.append(row)
+            continue
         if not template:
             expanded.append(row)
             continue
