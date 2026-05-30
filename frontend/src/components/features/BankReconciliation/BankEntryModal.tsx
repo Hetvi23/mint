@@ -369,6 +369,8 @@ const Entries = ({ company, isWithdrawal, amount, currency }: { company: string,
 
 
     return <div className="flex flex-col gap-2">
+        {/* Wrap the table so the new Reference Type / Name columns don't push Amount off-screen on narrower viewports. */}
+        <div className="overflow-x-auto">
         <Table>
             <TableHeader>
                 <TableRow>
@@ -432,7 +434,7 @@ const Entries = ({ company, isWithdrawal, amount, currency }: { company: string,
                                 hideLabel
                             />
                         </TableCell>
-                        <TableCell className="align-top">
+                        <TableCell className="align-top min-w-36">
                             <SelectFormField
                                 name={`entries.${index}.reference_type`}
                                 label={_("Reference Type")}
@@ -443,7 +445,7 @@ const Entries = ({ company, isWithdrawal, amount, currency }: { company: string,
                                 ))}
                             </SelectFormField>
                         </TableCell>
-                        <TableCell className="align-top">
+                        <TableCell className="align-top min-w-44">
                             <ReferenceNameField index={index} />
                         </TableCell>
                         <TableCell className="align-top">
@@ -480,6 +482,7 @@ const Entries = ({ company, isWithdrawal, amount, currency }: { company: string,
                 ))}
             </TableBody>
         </Table>
+        </div>
         <div className="flex justify-between gap-2">
             <div className="flex gap-2 justify-end">
                 <div>
@@ -531,7 +534,7 @@ const ReferenceNameField = ({ index }: { index: number }) => {
         return <DataField
             name={`entries.${index}.reference_name`}
             label={_("Reference Name")}
-            inputProps={{ disabled: true, className: 'min-w-48' }}
+            inputProps={{ disabled: true, className: 'min-w-44' }}
             hideLabel
         />
     }
@@ -546,7 +549,7 @@ const ReferenceNameField = ({ index }: { index: number }) => {
         doctype={referenceType}
         filters={filters}
         hideLabel
-        buttonClassName="min-w-48"
+        buttonClassName="min-w-44"
     />
 }
 
