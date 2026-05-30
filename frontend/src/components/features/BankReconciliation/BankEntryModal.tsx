@@ -11,9 +11,10 @@ import { toast } from "sonner"
 import ErrorBanner from "@/components/ui/error-banner"
 import { Button } from "@/components/ui/button"
 import SelectedTransactionDetails from "./SelectedTransactionDetails"
-import { AccountFormField, CurrencyFormField, DataField, DateField, LinkFormField, PartyTypeFormField, SmallTextField } from "@/components/ui/form-elements"
+import { AccountFormField, CurrencyFormField, DataField, DateField, LinkFormField, PartyTypeFormField, SelectFormField, SmallTextField } from "@/components/ui/form-elements"
+import { SelectItem } from "@/components/ui/select"
 import { Form } from "@/components/ui/form"
-import { useCallback, useContext, useMemo, useRef, useState } from "react"
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Plus, Trash2 } from "lucide-react"
@@ -135,8 +136,22 @@ interface BankEntryFormData extends Pick<JournalEntry, 'voucher_type' | 'cheque_
         amount: number,
         cost_center?: string,
         user_remark?: string,
+        reference_type?: string,
+        reference_name?: string,
     }[]
 }
+
+// Subset of Journal Entry Account.reference_type that's actually useful from a
+// bank-reconciliation context. Drops payroll/asset/loan flavors that won't be
+// picked from the bank-entry dialog.
+const REFERENCE_TYPE_OPTIONS = [
+    "Quotation",
+    "Sales Order",
+    "Sales Invoice",
+    "Purchase Order",
+    "Purchase Invoice",
+    "Journal Entry",
+] as const
 
 
 const BankEntryForm = ({ selectedTransaction }: { selectedTransaction: UnreconciledTransaction }) => {
@@ -165,7 +180,10 @@ const BankEntryForm = ({ selectedTransaction }: { selectedTransaction: Unreconci
                     account: rule?.account ?? '',
                     amount: selectedTransaction.unallocated_amount,
                     party_type: '',
-                    cost_center: getCompanyCostCenter(selectedTransaction.company ?? '') ?? ''
+                    party: '',
+                    cost_center: getCompanyCostCenter(selectedTransaction.company ?? '') ?? '',
+                    reference_type: '',
+                    reference_name: '',
                 }
             ],
         }
@@ -315,7 +333,9 @@ const Entries = ({ company, isWithdrawal, amount, currency }: { company: string,
             party: '',
             account: '',
             amount: remainingAmount,
-            cost_center: getCompanyCostCenter(company) ?? ''
+            cost_center: getCompanyCostCenter(company) ?? '',
+            reference_type: '',
+            reference_name: '',
         }, {
             focusName: `entries.${existingEntries.length}.account`
         })
@@ -360,6 +380,8 @@ const Entries = ({ company, isWithdrawal, amount, currency }: { company: string,
                         onCheckedChange={onSelectAll} /></TableHead>
                     <TableHead>{_("Party")}</TableHead>
                     <TableHead>{_("Account")}</TableHead>
+                    <TableHead>{_("Reference Type")}</TableHead>
+                    <TableHead>{_("Reference Name")}</TableHead>
                     <TableHead>{_("Cost Center")}</TableHead>
                     <TableHead>{_("Remarks")}</TableHead>
                     <TableHead className="text-right">{_("Amount")}</TableHead>
@@ -411,6 +433,20 @@ const Entries = ({ company, isWithdrawal, amount, currency }: { company: string,
                             />
                         </TableCell>
                         <TableCell className="align-top">
+                            <SelectFormField
+                                name={`entries.${index}.reference_type`}
+                                label={_("Reference Type")}
+                                hideLabel
+                            >
+                                {REFERENCE_TYPE_OPTIONS.map((option) => (
+                                    <SelectItem key={option} value={option}>{_(option)}</SelectItem>
+                                ))}
+                            </SelectFormField>
+                        </TableCell>
+                        <TableCell className="align-top">
+                            <ReferenceNameField index={index} />
+                        </TableCell>
+                        <TableCell className="align-top">
                             <LinkFormField
                                 doctype="Cost Center"
                                 name={`entries.${index}.cost_center`}
@@ -457,6 +493,61 @@ const Entries = ({ company, isWithdrawal, amount, currency }: { company: string,
         </div>
     </div>
 
+}
+
+// Resolve which party field on the referenced doctype matches the JE Account's party.
+// e.g. on Quotation the field is `party_name`, on Sales Order/Invoice it's `customer`,
+// on Purchase Order/Invoice it's `supplier`. Used to filter the Reference Name picker
+// so the user only sees docs that belong to the party already chosen on the row.
+const partyFilterFieldForRefType = (referenceType: string): string | null => {
+    switch (referenceType) {
+        case "Quotation":
+            return "party_name"
+        case "Sales Order":
+        case "Sales Invoice":
+            return "customer"
+        case "Purchase Order":
+        case "Purchase Invoice":
+            return "supplier"
+        default:
+            return null
+    }
+}
+
+const ReferenceNameField = ({ index }: { index: number }) => {
+
+    const { control, setValue } = useFormContext<BankEntryFormData>()
+
+    const referenceType = useWatch({ control, name: `entries.${index}.reference_type` })
+    const party = useWatch({ control, name: `entries.${index}.party` })
+
+    // When the user changes the reference type, the previously-picked name belongs
+    // to a different doctype and is meaningless; reset it.
+    useEffect(() => {
+        setValue(`entries.${index}.reference_name`, "")
+    }, [referenceType, index, setValue])
+
+    if (!referenceType) {
+        return <DataField
+            name={`entries.${index}.reference_name`}
+            label={_("Reference Name")}
+            inputProps={{ disabled: true, className: 'min-w-48' }}
+            hideLabel
+        />
+    }
+
+    const filterField = partyFilterFieldForRefType(referenceType)
+    const filters: [string, string, string][] = []
+    if (filterField && party) filters.push([filterField, "=", party])
+
+    return <LinkFormField
+        name={`entries.${index}.reference_name`}
+        label={_("Reference Name")}
+        doctype={referenceType}
+        filters={filters}
+        hideLabel
+        buttonClassName="min-w-48"
+    />
 }
 
 const PartyField = ({ index, onChange }: { index: number, onChange: (value: string, index: number) => void }) => {

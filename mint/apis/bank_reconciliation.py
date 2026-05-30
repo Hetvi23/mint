@@ -360,6 +360,10 @@ def create_bank_entry_and_reconcile(bank_transaction_name: str,
             "party_type": entry.get("party_type") if entry.get("party") else None,
             "party": entry.get("party"),
             "user_remark": entry.get("user_remark"),
+            # Optional reference link — empty strings are normalized to None so the
+            # row doesn't look reconciled-to-nothing.
+            "reference_type": entry.get("reference_type") or None,
+            "reference_name": entry.get("reference_name") or None,
             **dimensions,
         })
 
