@@ -566,6 +566,10 @@ def get_outstanding_references_for_record_payment(args: dict | str):
             "docstatus": 1,
             "quotation_to": "Customer",
             "party_name": party,
+            # Only genuinely open quotations belong here. Exclude:
+            #  - Ordered: already converted to a Sales Order (shown separately)
+            #  - Expired / Lost: no longer collectible
+            "status": ["not in", ["Ordered", "Expired", "Lost"]],
         }
         if company:
             quotation_filters["company"] = company
