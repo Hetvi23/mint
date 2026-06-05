@@ -138,6 +138,7 @@ interface BankEntryFormData extends Pick<JournalEntry, 'voucher_type' | 'cheque_
         user_remark?: string,
         reference_type?: string,
         reference_name?: string,
+        is_advance?: string,
     }[]
 }
 
@@ -184,6 +185,7 @@ const BankEntryForm = ({ selectedTransaction }: { selectedTransaction: Unreconci
                     cost_center: getCompanyCostCenter(selectedTransaction.company ?? '') ?? '',
                     reference_type: '',
                     reference_name: '',
+                    is_advance: 'No',
                 }
             ],
         }
@@ -336,6 +338,7 @@ const Entries = ({ company, isWithdrawal, amount, currency }: { company: string,
             cost_center: getCompanyCostCenter(company) ?? '',
             reference_type: '',
             reference_name: '',
+            is_advance: 'No',
         }, {
             focusName: `entries.${existingEntries.length}.account`
         })
@@ -384,6 +387,7 @@ const Entries = ({ company, isWithdrawal, amount, currency }: { company: string,
                     <TableHead>{_("Account")}</TableHead>
                     <TableHead>{_("Reference Type")}</TableHead>
                     <TableHead>{_("Reference Name")}</TableHead>
+                    <TableHead>{_("Is Advance")}</TableHead>
                     <TableHead>{_("Cost Center")}</TableHead>
                     <TableHead>{_("Remarks")}</TableHead>
                     <TableHead className="text-right">{_("Amount")}</TableHead>
@@ -447,6 +451,16 @@ const Entries = ({ company, isWithdrawal, amount, currency }: { company: string,
                         </TableCell>
                         <TableCell className="align-top min-w-44">
                             <ReferenceNameField index={index} />
+                        </TableCell>
+                        <TableCell className="align-top min-w-28">
+                            <SelectFormField
+                                name={`entries.${index}.is_advance`}
+                                label={_("Is Advance")}
+                                hideLabel
+                            >
+                                <SelectItem value="No">{_("No")}</SelectItem>
+                                <SelectItem value="Yes">{_("Yes")}</SelectItem>
+                            </SelectFormField>
                         </TableCell>
                         <TableCell className="align-top">
                             <LinkFormField

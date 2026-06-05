@@ -364,6 +364,9 @@ def create_bank_entry_and_reconcile(bank_transaction_name: str,
             # row doesn't look reconciled-to-nothing.
             "reference_type": entry.get("reference_type") or None,
             "reference_name": entry.get("reference_name") or None,
+            # Mark the row as an advance (Journal Entry Account.is_advance) so it feeds the
+            # advance_payment_chain when referencing a Quotation / Sales Order / Sales Invoice.
+            "is_advance": entry.get("is_advance") or "No",
             **dimensions,
         })
 
