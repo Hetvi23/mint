@@ -554,7 +554,9 @@ const ReferenceNameField = ({ index }: { index: number }) => {
     }
 
     const filterField = partyFilterFieldForRefType(referenceType)
-    const filters: [string, string, string][] = []
+    // Never offer cancelled documents (docstatus = 2) as a reference — e.g. a
+    // cancelled Journal Entry must not show up in the Reference Name dropdown.
+    const filters: [string, string, string][] = [["docstatus", "!=", "2"]]
     if (filterField && party) filters.push([filterField, "=", party])
 
     return <LinkFormField
