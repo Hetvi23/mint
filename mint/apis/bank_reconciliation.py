@@ -449,6 +449,22 @@ def create_payment_entry_and_reconcile(bank_transaction_name: str,
         **payment_entry_doc,
         "doctype": "Payment Entry",
     })
+    # ERPNext requires Reference No + Reference Date for bank-mode payments. The Record
+    # Payment UI shows "auto-populated if not set" — so when the caller leaves them
+    # blank, fill them from the bank transaction (matching the bulk flow above).
+    if not (payment_entry.get("reference_no") or "").strip() or not payment_entry.get("reference_date"):
+        bt = frappe.db.get_value(
+            "Bank Transaction",
+            bank_transaction_name,
+            ["reference_number", "description", "date"],
+            as_dict=True,
+        ) or {}
+        if not (payment_entry.get("reference_no") or "").strip():
+            payment_entry.reference_no = (
+                bt.get("reference_number") or bt.get("description") or bank_transaction_name
+            )[:140]
+        if not payment_entry.get("reference_date"):
+            payment_entry.reference_date = bt.get("date") or payment_entry.get("posting_date")
     payment_entry.insert()
     payment_entry.submit()
     return reconcile_vouchers(bank_transaction_name, json.dumps([{
